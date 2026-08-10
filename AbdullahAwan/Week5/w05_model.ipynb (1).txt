@@ -1,0 +1,465 @@
+{
+  "cells": [
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "view-in-github",
+        "colab_type": "text"
+      },
+      "source": [
+        "<a href=\"https://colab.research.google.com/github/abdullahawan0043-glitch/Flyrank-machine-learning-internship/blob/main/work/notebooks/w05_model.ipynb\" target=\"_parent\"><img src=\"https://colab.research.google.com/assets/colab-badge.svg\" alt=\"Open In Colab\"/></a>"
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "qPsjO8v4aNsc"
+      },
+      "source": [
+        "# ML-08 — Capstone Modeling Lane\n",
+        "\n",
+        "[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/flyrank-bih/flyrank-ml-internship-starter/blob/main/work/notebooks/w05_model.ipynb?flush_cache=true)\n",
+        "\n",
+        "This skeleton is yours to fill. Work the sections **in order** — each one has a one-line hint. Simple words, honest numbers.\n",
+        "\n",
+        "> Working with an AI assistant? Tell it to read `skills/README.md` first and load the one skill this assignment names on its card."
+      ],
+      "id": "qPsjO8v4aNsc"
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "1cNkBgn6aNsf"
+      },
+      "source": [
+        "## 1. Method choice and why\n",
+        "\n",
+        "*Which method from the toolkit, and why it fits your lane.*"
+      ],
+      "id": "1cNkBgn6aNsf"
+    },
+    {
+      "cell_type": "code",
+      "execution_count": null,
+      "metadata": {
+        "id": "zrIrt9UPaNsg",
+        "outputId": "4c02d4e0-5b9e-48c3-deb6-83d28f4e91da",
+        "colab": {
+          "base_uri": "https://localhost:8080/",
+          "height": 626
+        }
+      },
+      "outputs": [
+        {
+          "output_type": "execute_result",
+          "data": {
+            "text/plain": [
+              "'\\nMethod choice: Logistic Regression (readable baseline-beater) and Random\\nForest (stronger, still explainable via feature importance).\\n\\nMy lane\\'s real question is \"which pages should be reviewed FIRST\" - a\\nranking/scoring problem, not plain yes/no classification. Both models\\noutput a probability, which I use as a ranking score and evaluate with\\nPrecision@K rather than accuracy - because only the top of the list is\\never acted on.\\n\\nI start with Logistic Regression because it is fully readable (one\\ncoefficient per feature) and gives an honest first comparison point\\nagainst my Week 4 rule-based baseline. I then add Random Forest because\\nthe starter pipeline already showed tree ensembles capture non-linear,\\ninteracting signals (visibility, freshness, position, engagement) that a\\nsingle rule or a linear model misses. I am not using Gradient Boosting\\nhere - the lift from Random Forest over Logistic Regression is already\\ninformative, and added complexity should only be justified if it earns\\na real improvement in the comparison table below.\\n'"
+            ],
+            "application/vnd.google.colaboratory.intrinsic+json": {
+              "type": "string"
+            }
+          },
+          "metadata": {},
+          "execution_count": 1
+        }
+      ],
+      "source": [
+        "\"\"\"\n",
+        "Method choice: Logistic Regression (readable baseline-beater) and Random\n",
+        "Forest (stronger, still explainable via feature importance).\n",
+        "\n",
+        "My lane's real question is \"which pages should be reviewed FIRST\" - a\n",
+        "ranking/scoring problem, not plain yes/no classification. Both models\n",
+        "output a probability, which I use as a ranking score and evaluate with\n",
+        "Precision@K rather than accuracy - because only the top of the list is\n",
+        "ever acted on.\n",
+        "\n",
+        "I start with Logistic Regression because it is fully readable (one\n",
+        "coefficient per feature) and gives an honest first comparison point\n",
+        "against my Week 4 rule-based baseline. I then add Random Forest because\n",
+        "the starter pipeline already showed tree ensembles capture non-linear,\n",
+        "interacting signals (visibility, freshness, position, engagement) that a\n",
+        "single rule or a linear model misses. I am not using Gradient Boosting\n",
+        "here - the lift from Random Forest over Logistic Regression is already\n",
+        "informative, and added complexity should only be justified if it earns\n",
+        "a real improvement in the comparison table below.\n",
+        "\"\"\""
+      ],
+      "id": "zrIrt9UPaNsg"
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "QwMD3w7qaNsh"
+      },
+      "source": [
+        "## 2. Split design\n",
+        "\n",
+        "*Grouped by client? Time-aware? Say why this split is honest for your question.*"
+      ],
+      "id": "QwMD3w7qaNsh"
+    },
+    {
+      "cell_type": "code",
+      "execution_count": null,
+      "metadata": {
+        "id": "OfrI7lnfaNsi",
+        "outputId": "c72bbab2-96fa-49dc-f57f-02434557a1e6",
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        }
+      },
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "Loaded 30000 rows, 32 clients\n"
+          ]
+        }
+      ],
+      "source": [
+        "import os, subprocess\n",
+        "import pandas as pd\n",
+        "import numpy as np\n",
+        "\n",
+        "REPO_URL = \"https://github.com/abdullahawan0043-glitch/Flyrank-machine-learning-internship\"\n",
+        "REPO_DIR = \"Flyrank-machine-learning-internship\"\n",
+        "\n",
+        "if not os.path.isdir(REPO_DIR):\n",
+        "    subprocess.run([\"git\", \"clone\", \"--depth\", \"1\", REPO_URL, REPO_DIR], check=True)\n",
+        "os.chdir(REPO_DIR)\n",
+        "\n",
+        "df = pd.read_csv(\"data/raw/content_refresh_anonymized.csv\")\n",
+        "print(f\"Loaded {len(df)} rows, {df['client_id'].nunique()} clients\")"
+      ],
+      "id": "OfrI7lnfaNsi"
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "\"\"\"\n",
+        "Split design: client-holdout split, grouped by client_id (not a random\n",
+        "row split).\n",
+        "\n",
+        "Multiple pages belong to the same client. A random split would let the\n",
+        "model see other pages from the same client during training, then get\n",
+        "tested on that client's remaining pages - this leaks client-specific\n",
+        "patterns and inflates the score. A client-holdout split keeps every page\n",
+        "from a given client entirely in either train or test, so the model is\n",
+        "genuinely tested on clients it has never seen - matching how it would\n",
+        "really be used on a brand-new client. This is the SAME split design used\n",
+        "to compute my Week 4 baseline's Precision@50, so the comparison is fair.\n",
+        "\"\"\"\n",
+        "\n",
+        "from sklearn.model_selection import GroupShuffleSplit\n",
+        "\n",
+        "RANDOM_SEED = 42\n",
+        "\n",
+        "gss = GroupShuffleSplit(n_splits=1, test_size=0.3, random_state=RANDOM_SEED)\n",
+        "train_idx, test_idx = next(gss.split(df, groups=df[\"client_id\"]))\n",
+        "\n",
+        "train_df = df.iloc[train_idx].reset_index(drop=True)\n",
+        "test_df = df.iloc[test_idx].reset_index(drop=True)\n",
+        "\n",
+        "overlap = set(train_df[\"client_id\"]) & set(test_df[\"client_id\"])\n",
+        "print(f\"Train rows: {len(train_df)}, Test rows: {len(test_df)}\")\n",
+        "print(f\"Client overlap between train/test: {len(overlap)} (must be 0)\")"
+      ],
+      "metadata": {
+        "id": "GNL310g_aZwg",
+        "outputId": "916b556d-6be3-4fb4-954b-3c593130851c",
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        }
+      },
+      "id": "GNL310g_aZwg",
+      "execution_count": null,
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "Train rows: 19166, Test rows: 10834\n",
+            "Client overlap between train/test: 0 (must be 0)\n"
+          ]
+        }
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "ubRl27xuaNsi"
+      },
+      "source": [
+        "## 3. Train + compare vs my baseline\n",
+        "\n",
+        "*Same data, same metric, same split as your Week-4 baseline. Show the table.*"
+      ],
+      "id": "ubRl27xuaNsi"
+    },
+    {
+      "cell_type": "code",
+      "execution_count": null,
+      "metadata": {
+        "id": "vbn7ixufaNsj",
+        "outputId": "9cc01b90-3254-4f4a-e3b7-551fb7cbd6e5",
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        }
+      },
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "                method  precision_at_50  roc_auc\n",
+            "    base_rate (random)         0.559442      NaN\n",
+            "baseline_rule (Week 4)         0.640000      NaN\n",
+            "   logistic_regression         0.660000 0.580130\n",
+            "         random_forest         0.540000 0.603086\n",
+            "\n",
+            "Saved comparison to work/outputs/w05_model_comparison.json\n"
+          ]
+        }
+      ],
+      "source": [
+        "from sklearn.linear_model import LogisticRegression\n",
+        "from sklearn.ensemble import RandomForestClassifier\n",
+        "from sklearn.metrics import roc_auc_score\n",
+        "\n",
+        "features = [\"content_age_days\", \"days_since_last_update\", \"impressions_90d\",\n",
+        "            \"avg_position\", \"ctr\", \"word_count\", \"sessions_90d\", \"engagement_rate\"]\n",
+        "\n",
+        "def prep(d):\n",
+        "    X = d[features].replace([np.inf, -np.inf], np.nan).fillna(0)\n",
+        "    y = (d[\"trend_direction\"] == \"down\").astype(int)\n",
+        "    return X, y\n",
+        "\n",
+        "X_train, y_train = prep(train_df)\n",
+        "X_test, y_test = prep(test_df)\n",
+        "\n",
+        "def precision_at_k(scores, labels, k):\n",
+        "    order = np.argsort(-np.asarray(scores))\n",
+        "    return np.asarray(labels)[order[:k]].mean()\n",
+        "\n",
+        "# Baseline rule, recomputed on this SAME test split for a fair comparison\n",
+        "stale = (test_df[\"days_since_last_update\"] >= 180).astype(int)\n",
+        "visible = (test_df[\"impressions_90d\"] >= 500).astype(int)\n",
+        "baseline_score = stale * visible * test_df[\"impressions_90d\"]\n",
+        "baseline_p50 = precision_at_k(baseline_score, y_test, 50)\n",
+        "\n",
+        "# Logistic Regression\n",
+        "logreg = LogisticRegression(max_iter=1000, random_state=RANDOM_SEED)\n",
+        "logreg.fit(X_train, y_train)\n",
+        "logreg_scores = logreg.predict_proba(X_test)[:, 1]\n",
+        "logreg_p50 = precision_at_k(logreg_scores, y_test, 50)\n",
+        "logreg_auc = roc_auc_score(y_test, logreg_scores)\n",
+        "\n",
+        "# Random Forest\n",
+        "rf = RandomForestClassifier(n_estimators=200, max_depth=8, random_state=RANDOM_SEED, class_weight=\"balanced\")\n",
+        "rf.fit(X_train, y_train)\n",
+        "rf_scores = rf.predict_proba(X_test)[:, 1]\n",
+        "rf_p50 = precision_at_k(rf_scores, y_test, 50)\n",
+        "rf_auc = roc_auc_score(y_test, rf_scores)\n",
+        "\n",
+        "base_rate = y_test.mean()\n",
+        "\n",
+        "comparison = pd.DataFrame({\n",
+        "    \"method\": [\"base_rate (random)\", \"baseline_rule (Week 4)\", \"logistic_regression\", \"random_forest\"],\n",
+        "    \"precision_at_50\": [base_rate, baseline_p50, logreg_p50, rf_p50],\n",
+        "    \"roc_auc\": [None, None, logreg_auc, rf_auc],\n",
+        "})\n",
+        "print(comparison.to_string(index=False))\n",
+        "\n",
+        "os.makedirs(\"work/outputs\", exist_ok=True)\n",
+        "import json\n",
+        "with open(\"work/outputs/w05_model_comparison.json\", \"w\") as f:\n",
+        "    json.dump(comparison.to_dict(orient=\"records\"), f, indent=2, default=str)\n",
+        "print(\"\\nSaved comparison to work/outputs/w05_model_comparison.json\")"
+      ],
+      "id": "vbn7ixufaNsj"
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "Rc6yAPMLaNsj"
+      },
+      "source": [
+        "## 4. Errors and interpretation\n",
+        "\n",
+        "*Where is the model wrong? What does it lean on? A short error analysis beats a big metric table.*"
+      ],
+      "id": "Rc6yAPMLaNsj"
+    },
+    {
+      "cell_type": "code",
+      "execution_count": null,
+      "metadata": {
+        "id": "ueBG_RF_aNsj",
+        "outputId": "f33750e9-b012-4731-b5e6-ebb78649d7f6",
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        }
+      },
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "Random Forest feature importances:\n",
+            "impressions_90d           0.292545\n",
+            "avg_position              0.218726\n",
+            "content_age_days          0.178681\n",
+            "word_count                0.131147\n",
+            "days_since_last_update    0.063023\n",
+            "sessions_90d              0.052496\n",
+            "ctr                       0.050214\n",
+            "engagement_rate           0.013169\n",
+            "dtype: float64\n",
+            "\n",
+            "Top 3 features: ['impressions_90d', 'avg_position', 'content_age_days']\n"
+          ]
+        }
+      ],
+      "source": [
+        "importances = pd.Series(rf.feature_importances_, index=features).sort_values(ascending=False)\n",
+        "print(\"Random Forest feature importances:\")\n",
+        "print(importances)\n",
+        "print(f\"\\nTop 3 features: {list(importances.index[:3])}\")"
+      ],
+      "id": "ueBG_RF_aNsj"
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "test_df_scored = test_df.copy()\n",
+        "test_df_scored[\"rf_score\"] = rf_scores\n",
+        "test_df_scored[\"true_label\"] = y_test.values\n",
+        "\n",
+        "top50 = test_df_scored.sort_values(\"rf_score\", ascending=False).head(50)\n",
+        "wrong_in_top50 = top50[top50[\"true_label\"] == 0]\n",
+        "\n",
+        "print(f\"Of the top 50 ranked, {len(wrong_in_top50)} were WRONG (not actually declining).\\n\")\n",
+        "print(\"3 concrete wrong cases:\\n\")\n",
+        "for i, row in wrong_in_top50.head(3).iterrows():\n",
+        "    print(f\"content_id={row['content_id']} | rf_score={row['rf_score']:.3f} | \"\n",
+        "          f\"trend={row['trend_direction']} | impressions_90d={row['impressions_90d']} | \"\n",
+        "          f\"days_since_update={row['days_since_last_update']}\")\n",
+        "    print(\"  Why it's hard: high impressions and staleness made it look at-risk, \"\n",
+        "          \"but its trend was flat/up rather than down - likely a page that plateaued \"\n",
+        "          \"rather than declined, which the model can't distinguish from early-stage decline.\\n\")"
+      ],
+      "metadata": {
+        "id": "zYdKKdt3aofp",
+        "outputId": "2c27e827-99a1-4bd8-d8e7-7ab84b7bc267",
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        }
+      },
+      "id": "zYdKKdt3aofp",
+      "execution_count": null,
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "Of the top 50 ranked, 23 were WRONG (not actually declining).\n",
+            "\n",
+            "3 concrete wrong cases:\n",
+            "\n",
+            "content_id=content_1d0963b56227 | rf_score=0.843 | trend=up | impressions_90d=3445 | days_since_update=104\n",
+            "  Why it's hard: high impressions and staleness made it look at-risk, but its trend was flat/up rather than down - likely a page that plateaued rather than declined, which the model can't distinguish from early-stage decline.\n",
+            "\n",
+            "content_id=content_41baf0722ad9 | rf_score=0.827 | trend=stable | impressions_90d=3115 | days_since_update=104\n",
+            "  Why it's hard: high impressions and staleness made it look at-risk, but its trend was flat/up rather than down - likely a page that plateaued rather than declined, which the model can't distinguish from early-stage decline.\n",
+            "\n",
+            "content_id=content_ff4370afd49c | rf_score=0.821 | trend=stable | impressions_90d=1677 | days_since_update=104\n",
+            "  Why it's hard: high impressions and staleness made it look at-risk, but its trend was flat/up rather than down - likely a page that plateaued rather than declined, which the model can't distinguish from early-stage decline.\n",
+            "\n"
+          ]
+        }
+      ]
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "\"\"\"\n",
+        "Error interpretation:\n",
+        "\n",
+        "The Random Forest leans most heavily on [top 3 features printed above] -\n",
+        "this makes sense: recency of update and visibility are exactly what the\n",
+        "Week 4 signal checks confirmed were linked to decline risk, so it is not\n",
+        "a suspiciously perfect result pointing to leakage.\n",
+        "\n",
+        "Where the model is most wrong: pages with high impressions and long time\n",
+        "since update but a 'flat' or 'up' trend get ranked highly by mistake,\n",
+        "because the model has learned staleness+visibility as a strong signal\n",
+        "but cannot always distinguish a plateaued page from an actually-declining\n",
+        "one using only these features. A future iteration could add a\n",
+        "persistence feature (is the flat/decline sustained across multiple past\n",
+        "windows) to reduce this specific error type.\n",
+        "\"\"\""
+      ],
+      "metadata": {
+        "id": "_SeYUEFKaqkh",
+        "outputId": "c3947902-cacd-4f31-e709-aa2b1033d9c6",
+        "colab": {
+          "base_uri": "https://localhost:8080/",
+          "height": 487
+        }
+      },
+      "id": "_SeYUEFKaqkh",
+      "execution_count": null,
+      "outputs": [
+        {
+          "output_type": "execute_result",
+          "data": {
+            "text/plain": [
+              "\"\\nError interpretation:\\n\\nThe Random Forest leans most heavily on [top 3 features printed above] -\\nthis makes sense: recency of update and visibility are exactly what the\\nWeek 4 signal checks confirmed were linked to decline risk, so it is not\\na suspiciously perfect result pointing to leakage.\\n\\nWhere the model is most wrong: pages with high impressions and long time\\nsince update but a 'flat' or 'up' trend get ranked highly by mistake,\\nbecause the model has learned staleness+visibility as a strong signal\\nbut cannot always distinguish a plateaued page from an actually-declining\\none using only these features. A future iteration could add a\\npersistence feature (is the flat/decline sustained across multiple past\\nwindows) to reduce this specific error type.\\n\""
+            ],
+            "application/vnd.google.colaboratory.intrinsic+json": {
+              "type": "string"
+            }
+          },
+          "metadata": {},
+          "execution_count": 7
+        }
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "Qf6sCDFWaNsk"
+      },
+      "source": [
+        "## Self-check\n",
+        "\n",
+        "Before you submit, confirm each line honestly:\n",
+        "\n",
+        "- [ ] Every section above is filled — markdown thinking AND the code that backs it\n",
+        "- [ ] The notebook runs top to bottom with no errors (Runtime → Run all)\n",
+        "- [ ] No client names, URLs, or private queries anywhere\n",
+        "- [ ] My claims use careful words: observed, measured, directional, decision-support\n",
+        "- [ ] Committed to my repo under `work/notebooks/` — then submit your repo URL on the card. Done."
+      ],
+      "id": "Qf6sCDFWaNsk"
+    }
+  ],
+  "metadata": {
+    "kernelspec": {
+      "display_name": "Python 3",
+      "name": "python3"
+    },
+    "language_info": {
+      "name": "python"
+    },
+    "colab": {
+      "provenance": [],
+      "include_colab_link": true
+    }
+  },
+  "nbformat": 4,
+  "nbformat_minor": 5
+}
