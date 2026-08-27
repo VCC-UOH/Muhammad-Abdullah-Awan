@@ -1,0 +1,490 @@
+{
+  "cells": [
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "view-in-github",
+        "colab_type": "text"
+      },
+      "source": [
+        "<a href=\"https://colab.research.google.com/github/abdullahawan0043-glitch/Flyrank-machine-learning-internship/blob/main/work/notebooks/w07_action_playbook.ipynb\" target=\"_parent\"><img src=\"https://colab.research.google.com/assets/colab-badge.svg\" alt=\"Open In Colab\"/></a>"
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "Lx5hrZCC23n1"
+      },
+      "source": [
+        "# ML-10 — Content Action Playbook\n",
+        "\n",
+        "[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/flyrank-bih/flyrank-ml-internship-starter/blob/main/work/notebooks/w07_action_playbook.ipynb?flush_cache=true)\n",
+        "\n",
+        "This skeleton is yours to fill. Work the sections **in order** — each one has a one-line hint. Simple words, honest numbers.\n",
+        "\n",
+        "> Working with an AI assistant? Tell it to read `skills/README.md` first and load the one skill this assignment names on its card."
+      ],
+      "id": "Lx5hrZCC23n1"
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "aTXZqmzR23n4"
+      },
+      "source": [
+        "## 1. Ranked actions + reason codes\n",
+        "\n",
+        "*The queue: what to do first, and why, in words a human trusts.*"
+      ],
+      "id": "aTXZqmzR23n4"
+    },
+    {
+      "cell_type": "code",
+      "execution_count": null,
+      "metadata": {
+        "id": "JqdyY6-A23n5"
+      },
+      "outputs": [],
+      "source": [
+        "import os, subprocess\n",
+        "import pandas as pd\n",
+        "import numpy as np\n",
+        "\n",
+        "REPO_URL = \"https://github.com/abdullahawan0043-glitch/Flyrank-machine-learning-internship\"\n",
+        "REPO_DIR = \"Flyrank-machine-learning-internship\"\n",
+        "\n",
+        "if not os.path.isdir(REPO_DIR):\n",
+        "    subprocess.run([\"git\", \"clone\", \"--depth\", \"1\", REPO_URL, REPO_DIR], check=True)\n",
+        "os.chdir(REPO_DIR)\n",
+        "\n",
+        "df = pd.read_csv(\"data/raw/content_refresh_anonymized.csv\")\n",
+        "\n",
+        "features = [\"content_age_days\", \"days_since_last_update\", \"impressions_90d\",\n",
+        "            \"avg_position\", \"ctr\", \"word_count\", \"sessions_90d\", \"engagement_rate\"]\n",
+        "\n",
+        "def prep(d):\n",
+        "    X = d[features].replace([np.inf, -np.inf], np.nan).fillna(0)\n",
+        "    y = (d[\"trend_direction\"] == \"down\").astype(int)\n",
+        "    return X, y"
+      ],
+      "id": "JqdyY6-A23n5"
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "from sklearn.model_selection import GroupShuffleSplit\n",
+        "from sklearn.ensemble import RandomForestClassifier\n",
+        "\n",
+        "RANDOM_SEED = 42\n",
+        "gss = GroupShuffleSplit(n_splits=1, test_size=0.3, random_state=RANDOM_SEED)\n",
+        "train_idx, test_idx = next(gss.split(df, groups=df[\"client_id\"]))\n",
+        "train_df, test_df = df.iloc[train_idx].reset_index(drop=True), df.iloc[test_idx].reset_index(drop=True)\n",
+        "\n",
+        "X_train, y_train = prep(train_df)\n",
+        "X_test, y_test = prep(test_df)\n",
+        "\n",
+        "rf = RandomForestClassifier(n_estimators=200, max_depth=8, random_state=RANDOM_SEED, class_weight=\"balanced\")\n",
+        "rf.fit(X_train, y_train)\n",
+        "scores = rf.predict_proba(X_test)[:, 1]\n",
+        "\n",
+        "playbook = test_df.copy()\n",
+        "playbook[\"model_score\"] = scores\n",
+        "\n",
+        "# Archetype -> action mapping with reason codes (builds on Week 4 signal checks + Week 5 model)\n",
+        "def assign_reason_and_action(row):\n",
+        "    if row[\"days_since_last_update\"] >= 180 and row[\"impressions_90d\"] >= 500 and row[\"model_score\"] >= 0.5:\n",
+        "        return \"stale_but_visible_high_risk\", \"refresh_priority\"\n",
+        "    elif row[\"avg_position\"] > 0 and row[\"avg_position\"] <= 20 and row[\"ctr\"] < 0.5 and row[\"impressions_90d\"] >= 500:\n",
+        "        return \"page1_ctr_gap\", \"review_snippet_title\"\n",
+        "    elif row[\"model_score\"] >= 0.65:\n",
+        "        return \"model_flagged_decline_risk\", \"review_for_refresh\"\n",
+        "    elif row[\"impressions_90d\"] < 100:\n",
+        "        return \"low_visibility\", \"monitor_only\"\n",
+        "    else:\n",
+        "        return \"no_flag\", \"no_action\"\n",
+        "\n",
+        "playbook[[\"reason_code\", \"action\"]] = playbook.apply(\n",
+        "    lambda r: pd.Series(assign_reason_and_action(r)), axis=1\n",
+        ")\n",
+        "\n",
+        "ranked_queue = playbook.sort_values(\"model_score\", ascending=False).reset_index(drop=True)\n",
+        "ranked_queue[\"rank\"] = ranked_queue.index + 1\n",
+        "\n",
+        "print(\"Top 15 ranked actions:\")\n",
+        "print(ranked_queue[[\"rank\", \"content_id\", \"model_score\", \"reason_code\", \"action\"]].head(15).to_string(index=False))\n",
+        "\n",
+        "print(\"\\nAction distribution:\")\n",
+        "print(ranked_queue[\"action\"].value_counts())"
+      ],
+      "metadata": {
+        "id": "5oERHu_g3E79",
+        "outputId": "c0b4fd88-4ab9-4b13-eedc-e4fc42c55096",
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        }
+      },
+      "id": "5oERHu_g3E79",
+      "execution_count": null,
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "Top 15 ranked actions:\n",
+            " rank           content_id  model_score                reason_code               action\n",
+            "    1 content_1d0963b56227     0.842550 model_flagged_decline_risk   review_for_refresh\n",
+            "    2 content_f55fd2d8ed04     0.827001              page1_ctr_gap review_snippet_title\n",
+            "    3 content_41baf0722ad9     0.826642              page1_ctr_gap review_snippet_title\n",
+            "    4 content_66458ac1b739     0.825616              page1_ctr_gap review_snippet_title\n",
+            "    5 content_8573511e9f28     0.825130 model_flagged_decline_risk   review_for_refresh\n",
+            "    6 content_d85f062b576f     0.824491 model_flagged_decline_risk   review_for_refresh\n",
+            "    7 content_e988c1699454     0.824223 model_flagged_decline_risk   review_for_refresh\n",
+            "    8 content_01118d5030d0     0.821883 model_flagged_decline_risk   review_for_refresh\n",
+            "    9 content_bb1edbf0ba6c     0.821753              page1_ctr_gap review_snippet_title\n",
+            "   10 content_ec257d803f69     0.821271              page1_ctr_gap review_snippet_title\n",
+            "   11 content_ff4370afd49c     0.820859 model_flagged_decline_risk   review_for_refresh\n",
+            "   12 content_700de55b1459     0.819126              page1_ctr_gap review_snippet_title\n",
+            "   13 content_3164f3076003     0.819051              page1_ctr_gap review_snippet_title\n",
+            "   14 content_ef6e7d7cfe15     0.819050 model_flagged_decline_risk   review_for_refresh\n",
+            "   15 content_2ba626fea4d6     0.818533 model_flagged_decline_risk   review_for_refresh\n",
+            "\n",
+            "Action distribution:\n",
+            "action\n",
+            "review_for_refresh      3991\n",
+            "review_snippet_title    2983\n",
+            "monitor_only            2022\n",
+            "no_action               1835\n",
+            "refresh_priority           3\n",
+            "Name: count, dtype: int64\n"
+          ]
+        }
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "XXvL0xPb23n7"
+      },
+      "source": [
+        "## 2. Intended use and limits\n",
+        "\n",
+        "*Who uses this, for what — and where it stops being valid.*"
+      ],
+      "id": "XXvL0xPb23n7"
+    },
+    {
+      "cell_type": "code",
+      "execution_count": null,
+      "metadata": {
+        "id": "LZ2tELOg23n7",
+        "outputId": "9c2df3d5-546d-4970-ecb9-182ffbcb15d5",
+        "colab": {
+          "base_uri": "https://localhost:8080/",
+          "height": 626
+        }
+      },
+      "outputs": [
+        {
+          "output_type": "execute_result",
+          "data": {
+            "text/plain": [
+              "'\\nIntended use: This playbook produces a RANKED REVIEW QUEUE to help a\\ncontent editor decide which pages to look at first, given limited time -\\nit is decision-support, not an automated publishing or ranking system.\\n\\nIn this observed test split, the model ranks pages by decline risk at a\\nmeasured Precision@50 (see Week 5/6 notebooks for the exact honest,\\ngrouped-split number). This is a directional signal from one data slice,\\nnot a guarantee that any specific page is genuinely declining.\\n\\nLimits (in the claim-ladder language from the writing-honest-claims skill):\\n- Cross-sectional, observational data: we did not run an experiment, so\\n  this playbook cannot say a refresh \"will cause\" recovery - only that a\\n  page \"looks worth reviewing first, because\" of specific observed signals.\\n- Population filter: the underlying starter dataset only includes rows\\n  with impressions_90d > 0 and content_age_days >= 90 (active-content\\n  survivor filter, matching the Week 4 data contract) - very new or fully\\n  invisible pages are not represented in this queue at all.\\n- Health/priority-style composite scores were deliberately NOT built or\\n  used as either a feature or a label, avoiding the circular-signal issue\\n  named in the paper\\'s own methodology section.\\n- Sample scope: this queue reflects one client-holdout test split of the\\n  30,000-row anonymized starter sample, not FlyRank\\'s full client base.\\n'"
+            ],
+            "application/vnd.google.colaboratory.intrinsic+json": {
+              "type": "string"
+            }
+          },
+          "metadata": {},
+          "execution_count": 3
+        }
+      ],
+      "source": [
+        "\"\"\"\n",
+        "Intended use: This playbook produces a RANKED REVIEW QUEUE to help a\n",
+        "content editor decide which pages to look at first, given limited time -\n",
+        "it is decision-support, not an automated publishing or ranking system.\n",
+        "\n",
+        "In this observed test split, the model ranks pages by decline risk at a\n",
+        "measured Precision@50 (see Week 5/6 notebooks for the exact honest,\n",
+        "grouped-split number). This is a directional signal from one data slice,\n",
+        "not a guarantee that any specific page is genuinely declining.\n",
+        "\n",
+        "Limits (in the claim-ladder language from the writing-honest-claims skill):\n",
+        "- Cross-sectional, observational data: we did not run an experiment, so\n",
+        "  this playbook cannot say a refresh \"will cause\" recovery - only that a\n",
+        "  page \"looks worth reviewing first, because\" of specific observed signals.\n",
+        "- Population filter: the underlying starter dataset only includes rows\n",
+        "  with impressions_90d > 0 and content_age_days >= 90 (active-content\n",
+        "  survivor filter, matching the Week 4 data contract) - very new or fully\n",
+        "  invisible pages are not represented in this queue at all.\n",
+        "- Health/priority-style composite scores were deliberately NOT built or\n",
+        "  used as either a feature or a label, avoiding the circular-signal issue\n",
+        "  named in the paper's own methodology section.\n",
+        "- Sample scope: this queue reflects one client-holdout test split of the\n",
+        "  30,000-row anonymized starter sample, not FlyRank's full client base.\n",
+        "\"\"\""
+      ],
+      "id": "LZ2tELOg23n7"
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "l52SaPr723n8"
+      },
+      "source": [
+        "## 3. Human review + the no-go list\n",
+        "\n",
+        "*What a person must check before acting. What should never be automated.*"
+      ],
+      "id": "l52SaPr723n8"
+    },
+    {
+      "cell_type": "code",
+      "execution_count": null,
+      "metadata": {
+        "id": "022NFvWu23n9",
+        "outputId": "e65d9e49-14e4-4fe3-be2f-24eabd52d1e4",
+        "colab": {
+          "base_uri": "https://localhost:8080/",
+          "height": 626
+        }
+      },
+      "outputs": [
+        {
+          "output_type": "execute_result",
+          "data": {
+            "text/plain": [
+              "'\\nHuman review rules:\\n- Every action in this queue must be reviewed by a human editor before\\n  any content change is made - the model score sets ORDER, not approval.\\n- Reviewers should check for consolidation (a sibling page absorbing lost\\n  traffic) and seasonality before treating a \"decline\" flag as real,\\n  per the Week 4 decline-vs-consolidation-vs-seasonality distinction.\\n- Any \"refresh_priority\" action should be paired with a quick manual scan\\n  of the page\\'s current content quality - the model cannot judge whether\\n  a refresh is actually warranted content-wise.\\n\\nNO-GO list - what should NOT be automated from this playbook:\\n1. Do NOT auto-publish or auto-edit any page based on model_score alone -\\n   every action requires human sign-off first.\\n2. Do NOT use this queue to make removal/de-indexing decisions - the\\n   model was never trained or validated for that action type.\\n3. Do NOT treat \"no_action\" pages as permanently safe - low visibility\\n   pages may simply be under-measured, not genuinely low-priority.\\n4. Do NOT combine model_score across different client segments as if it\\n   were comparable - the grouped-split evaluation only confirms\\n   cross-client generalization at the aggregate level, not per-client\\n   score comparability.\\n5. Do NOT present model_score to stakeholders as a probability of\\n   \"actual\" decline without the Precision@50 and base-rate context from\\n   Week 5/6 - a bare score number invites overclaiming.\\n'"
+            ],
+            "application/vnd.google.colaboratory.intrinsic+json": {
+              "type": "string"
+            }
+          },
+          "metadata": {},
+          "execution_count": 4
+        }
+      ],
+      "source": [
+        "\"\"\"\n",
+        "Human review rules:\n",
+        "- Every action in this queue must be reviewed by a human editor before\n",
+        "  any content change is made - the model score sets ORDER, not approval.\n",
+        "- Reviewers should check for consolidation (a sibling page absorbing lost\n",
+        "  traffic) and seasonality before treating a \"decline\" flag as real,\n",
+        "  per the Week 4 decline-vs-consolidation-vs-seasonality distinction.\n",
+        "- Any \"refresh_priority\" action should be paired with a quick manual scan\n",
+        "  of the page's current content quality - the model cannot judge whether\n",
+        "  a refresh is actually warranted content-wise.\n",
+        "\n",
+        "NO-GO list - what should NOT be automated from this playbook:\n",
+        "1. Do NOT auto-publish or auto-edit any page based on model_score alone -\n",
+        "   every action requires human sign-off first.\n",
+        "2. Do NOT use this queue to make removal/de-indexing decisions - the\n",
+        "   model was never trained or validated for that action type.\n",
+        "3. Do NOT treat \"no_action\" pages as permanently safe - low visibility\n",
+        "   pages may simply be under-measured, not genuinely low-priority.\n",
+        "4. Do NOT combine model_score across different client segments as if it\n",
+        "   were comparable - the grouped-split evaluation only confirms\n",
+        "   cross-client generalization at the aggregate level, not per-client\n",
+        "   score comparability.\n",
+        "5. Do NOT present model_score to stakeholders as a probability of\n",
+        "   \"actual\" decline without the Precision@50 and base-rate context from\n",
+        "   Week 5/6 - a bare score number invites overclaiming.\n",
+        "\"\"\""
+      ],
+      "id": "022NFvWu23n9"
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "Zg4KRLHg23n9"
+      },
+      "source": [
+        "## 4. Monitoring / retrain triggers\n",
+        "\n",
+        "*What would tell you the recommendations went stale?*"
+      ],
+      "id": "Zg4KRLHg23n9"
+    },
+    {
+      "cell_type": "code",
+      "execution_count": null,
+      "metadata": {
+        "id": "tMmVhc6V23n-",
+        "outputId": "6835b975-c50a-42e7-c09a-3e6aca31996a",
+        "colab": {
+          "base_uri": "https://localhost:8080/",
+          "height": 626
+        }
+      },
+      "outputs": [
+        {
+          "output_type": "execute_result",
+          "data": {
+            "text/plain": [
+              "'\\nLight monitoring plan:\\n- Track Precision@50 and base rate on each new month\\'s data as it becomes\\n  available; if Precision@50 drifts more than ~15% below the Week 5/6\\n  honest-split baseline for two consecutive months, flag for review.\\n- Track the reason_code distribution over time - a sudden shift (e.g.\\n  \"stale_but_visible_high_risk\" share doubling) may indicate a real\\n  portfolio shift or a pipeline/data issue, and should be checked before\\n  trusting the queue.\\n- Watch for feature drift: if avg_position or impressions_90d\\n  distributions shift substantially from the training window, the model\\n  may need retraining rather than continued use as-is.\\n\\nRetrain triggers:\\n- New month of data available AND at least 90 days have passed since the\\n  last training window (to keep feature windows leakage-safe).\\n- A monitoring alert above fires (score drift or reason-code shift).\\n- The underlying data contract changes (new columns, redefined trend\\n  labels, or a new client cohort with materially different history depth).\\n'"
+            ],
+            "application/vnd.google.colaboratory.intrinsic+json": {
+              "type": "string"
+            }
+          },
+          "metadata": {},
+          "execution_count": 5
+        }
+      ],
+      "source": [
+        "\"\"\"\n",
+        "Light monitoring plan:\n",
+        "- Track Precision@50 and base rate on each new month's data as it becomes\n",
+        "  available; if Precision@50 drifts more than ~15% below the Week 5/6\n",
+        "  honest-split baseline for two consecutive months, flag for review.\n",
+        "- Track the reason_code distribution over time - a sudden shift (e.g.\n",
+        "  \"stale_but_visible_high_risk\" share doubling) may indicate a real\n",
+        "  portfolio shift or a pipeline/data issue, and should be checked before\n",
+        "  trusting the queue.\n",
+        "- Watch for feature drift: if avg_position or impressions_90d\n",
+        "  distributions shift substantially from the training window, the model\n",
+        "  may need retraining rather than continued use as-is.\n",
+        "\n",
+        "Retrain triggers:\n",
+        "- New month of data available AND at least 90 days have passed since the\n",
+        "  last training window (to keep feature windows leakage-safe).\n",
+        "- A monitoring alert above fires (score drift or reason-code shift).\n",
+        "- The underlying data contract changes (new columns, redefined trend\n",
+        "  labels, or a new client cohort with materially different history depth).\n",
+        "\"\"\""
+      ],
+      "id": "tMmVhc6V23n-"
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "az2R-psq23n-"
+      },
+      "source": [
+        "## 5. Exports for the paper\n",
+        "\n",
+        "*Write the queue (and any figures you want to reuse) to work/outputs/ — your paper builds on these files.*"
+      ],
+      "id": "az2R-psq23n-"
+    },
+    {
+      "cell_type": "code",
+      "execution_count": null,
+      "metadata": {
+        "id": "9FBLdpOb23n_",
+        "outputId": "f5a88cf4-c005-4469-e763-5a63a2012f99",
+        "colab": {
+          "base_uri": "https://localhost:8080/",
+          "height": 265
+        }
+      },
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "Wrote 10834 ranked rows to work/outputs/action_playbook_queue.csv\n",
+            "\n",
+            "Cost/value estimate: reviewing the top 50 pages/week, ~54% are expected to be genuine decline candidates based on the measured, honest-split Precision@50 - i.e. roughly 27 of 50 reviews are likely worth the editor's time, versus a random pick which would only match the base rate.\n"
+          ]
+        },
+        {
+          "output_type": "display_data",
+          "data": {
+            "text/plain": [
+              "<Figure size 700x400 with 1 Axes>"
+            ],
+            "image/png": "iVBORw0KGgoAAAANSUhEUgAAArIAAAGGCAYAAACHemKmAAAAOnRFWHRTb2Z0d2FyZQBNYXRwbG90bGliIHZlcnNpb24zLjEwLjAsIGh0dHBzOi8vbWF0cGxvdGxpYi5vcmcvlHJYcgAAAAlwSFlzAAAPYQAAD2EBqD+naQAAYF9JREFUeJzt3Xlcjen/P/DXKW3aoxWTkqFUKIzGEmlEGQxmMIbIMogoH9sYxjZjG/s6g5EMZsY61pZRsu8i+xYxVEwqhdb794dv989xig6n7k69no9Hj4dz3de579c5p5P3uc91X5dMEAQBRERERERqRkPqAERERERE74OFLBERERGpJRayRERERKSWWMgSERERkVpiIUtEREREaomFLBERERGpJRayRERERKSWWMgSERERkVpiIUtEREREaomFLJEamDp1KmQyWZkcq02bNmjTpo14++DBg5DJZNi6dWuZHL9///6oXbt2mRzrfWVmZmLQoEGwsrKCTCbD6NGjpY5EJRAaGgqZTIa7d++qbJ/l8fdVJpNh6tSpUscgKhMsZInKWOF/poU/urq6sLGxgY+PD5YsWYJnz56p5DgPHz7E1KlTERcXp5L9qVJ5zlYSP/30E0JDQzFs2DBs2LABffv2LbZv7dq15V5vfX19NGvWDGFhYWWYmMqTZs2aQSaTYeXKle+9j3379rFYJQJQReoARJXV9OnTYWdnh9zcXCQlJeHgwYMYPXo0FixYgF27dsHV1VXs+/3332PChAlK7f/hw4eYNm0aateujUaNGpX4fpGRkUod5328Ldvq1atRUFBQ6hk+RHR0NJo3b44ffvihRP0bNWqEMWPGAAAePXqENWvWwN/fH9nZ2Rg8eHBpRqVy5ubNmzh9+jRq166NjRs3YtiwYe+1n3379mH58uVFFrMvXrxAlSr8750qB/6mE0mkY8eOaNKkiXh74sSJiI6ORqdOndC5c2dcvXoVenp6AIAqVaqU+n9Mz58/R9WqVaGtrV2qx3kXLS0tSY9fEikpKXBycipx/xo1auCbb74Rb/fv3x/29vZYuHAhC9lK5vfff4eFhQXmz5+PHj164O7duyofmqCrq6vS/RGVZxxaQFSOeHl5YfLkybh37x5+//13sb2oMbJRUVFo2bIlTExMYGBggHr16uG7774D8Gpca9OmTQEAAwYMEL/WDg0NBfBqHKyz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Jne/5ORkWFlZAQCsrKwUZjEovP2uPkZGRkWejQWAiRMnIj09Xfy5f/++Kh4yEREREamQZIVsu3btEB8fj7i4OPGnSZMm6NOnj/hvLS0tHDhwQLzP9evXkZiYCA8PDwCAh4cH4uPjkZKSIvaJioqCkZERnJycxD6v76OwT+E+iqKjoyMufsBFEIiIiIjKJ8mGFhgaGsLZ2VmuTV9fH9WqVRPbBw4ciJCQEJiZmcHIyAgjR46Eh4cHmjdvDgBo3749nJyc0LdvX8ydOxdJSUn4/vvvERgYCB0dHQDA0KFDsWzZMowbNw4BAQGIjo7GX3/9hb1795btAyYiIiIilSrXS9QuXLgQGhoa6N69O7Kzs+Hj44MVK1aI2zU1NbFnzx4MGzYMHh4e0NfXh7+/P6ZPny72sbOzw969exEcHIzFixejZs2aWLNmDXx8fKR4SERERESkIpLPI6sOpJ5Hlhd7ERERUWWhVvPIEhERERG9DxayRERERKSWWMgSERERkVpiIUtEREREaomFLBERERGpJRayRERERKSWWMgSERERkVpiIUtEREREaomFLBERERGpJRayRERERKSWWMgSERERkVpiIUtEREREaomFLBERERGpJRayRERERKSWWMgSERERkVpiIUtEREREaomFLBERERGppQ8uZPPz8xEXF4enT5+qIg8RERERUYkoXciOHj0aa9euBfCqiPX09ISbmxtq1aqFgwcPqjofEREREVGRlC5kt27dioYNGwIAdu/ejYSEBFy7dg3BwcGYNGmSygMSERERERVF6UL2yZMnsLKyAgDs27cPX375JT7++GMEBAQgPj5e5QGJiIiIiIqidCFraWmJK1euID8/H+Hh4fjss88AAM+fP4empqbKAxIRERERFaWKsncYMGAAvvrqK1hbW0Mmk8Hb2xsAcPLkSdSvX1/lAYmIiIiIiqJ0ITt16lQ4Ozvj/v37+PLLL6GjowMA0NTUxIQJE1QekIiIiIioKEoXsgDQo0cPAMDLly/FNn9/f9UkIiIiIiIqAaXHyObn52PGjBmoUaMGDAwMcOfOHQDA5MmTxWm5iIiIiIhKm9KF7I8//ojQ0FDMnTsX2traYruzszPWrFmj0nBERERERMVRupANCwvDr7/+ij59+sjNUtCwYUNcu3ZNpeGIiIiIiIqjdCH777//wsHBQaG9oKAAubm5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YhELAC1atEBBQQGuX78utjVo0ACampribWtra6SkpLz3cYmIVI1nZImIypnPP/8ctra2WL16NWxsbFBQUABnZ2fk5ORAT0+vzHJoaWnJ3ZbJZCgoKCiz4xMRvQvPyBIRlSP//fcfrl+/ju+//x7t2rWDo6Mjnj59Km53dXVFXFwcUlNTi7y/trY28vPz33oMR0dHXLhwAVlZWWLb0aNHoaGhgXr16qnmgRARlQEWskRE5YipqSmqVauGX3/9Fbdu3UJ0dDRCQkLE7b1794aVlRW6du2Ko0eP4s6dO9i2bRuOHz8OAKhduzYSEhIQFxeHJ0+eIDs7W+EYffr0ga6uLvz9/XHp0iXExMRg5MiR6Nu3rzg+lohIHbCQJSIqRzQ0NPDHH3/g7NmzcHZ2RnBwMObNmydu19bWRmRkJCwsLODr6wsXFxfMnj1bHMvavXt3dOjQAW3btoW5uTk2b96scIyqVasiIiICqampaNq0KXr06IF27dph2bJlZfY4iYhUQSYIgiB1CCIiIiIiZfGMLBERERGpJRayRERERKSWWMgSERERkVpiIUtEREREaomFLBERERGpJRayRERERKSWWMgSERERkVpiIUtEREREaomFLBERERGpJRayRERERKSWWMgSERERkVpiIUtEREREaun/ARBsmQRsXqyOAAAAAElFTkSuQmCC\n"
+          },
+          "metadata": {}
+        },
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "Saved figure to work/figures/action_distribution.png\n",
+            "Saved metrics receipts to work/outputs/w07_playbook_metrics.json\n"
+          ]
+        }
+      ],
+      "source": [
+        "os.makedirs(\"work/outputs\", exist_ok=True)\n",
+        "os.makedirs(\"work/figures\", exist_ok=True)\n",
+        "\n",
+        "# Export the ranked queue (stays out of git by design - CI leak-guard)\n",
+        "ranked_queue.to_csv(\"work/outputs/action_playbook_queue.csv\", index=False)\n",
+        "print(f\"Wrote {len(ranked_queue)} ranked rows to work/outputs/action_playbook_queue.csv\")\n",
+        "\n",
+        "# Cost/value thinking - simple, transparent estimate\n",
+        "review_capacity_per_week = 50\n",
+        "top_queue = ranked_queue.head(review_capacity_per_week)\n",
+        "est_true_positive_rate = 0.54  # from Week 6 honest Precision@50\n",
+        "print(f\"\\nCost/value estimate: reviewing the top {review_capacity_per_week} pages/week, \"\n",
+        "      f\"~{est_true_positive_rate*100:.0f}% are expected to be genuine decline candidates \"\n",
+        "      f\"based on the measured, honest-split Precision@50 - i.e. roughly \"\n",
+        "      f\"{int(review_capacity_per_week*est_true_positive_rate)} of {review_capacity_per_week} \"\n",
+        "      f\"reviews are likely worth the editor's time, versus a random pick which would only \"\n",
+        "      f\"match the base rate.\")\n",
+        "\n",
+        "# A figure to reuse in the paper: action distribution\n",
+        "import matplotlib.pyplot as plt\n",
+        "fig, ax = plt.subplots(figsize=(7, 4))\n",
+        "ranked_queue[\"action\"].value_counts().plot(kind=\"bar\", ax=ax, color=\"#2E74B5\")\n",
+        "ax.set_title(\"Distribution of Recommended Actions\")\n",
+        "ax.set_ylabel(\"Number of Pages\")\n",
+        "plt.tight_layout()\n",
+        "plt.savefig(\"work/figures/action_distribution.png\", dpi=150)\n",
+        "plt.show()\n",
+        "print(\"Saved figure to work/figures/action_distribution.png\")\n",
+        "\n",
+        "# Metrics JSON - the receipts\n",
+        "import json\n",
+        "metrics = {\n",
+        "    \"n_pages_in_queue\": len(ranked_queue),\n",
+        "    \"review_capacity_per_week\": review_capacity_per_week,\n",
+        "    \"estimated_precision_at_review_capacity\": est_true_positive_rate,\n",
+        "    \"action_distribution\": ranked_queue[\"action\"].value_counts().to_dict(),\n",
+        "    \"random_seed\": RANDOM_SEED,\n",
+        "}\n",
+        "with open(\"work/outputs/w07_playbook_metrics.json\", \"w\") as f:\n",
+        "    json.dump(metrics, f, indent=2, default=str)\n",
+        "print(\"Saved metrics receipts to work/outputs/w07_playbook_metrics.json\")"
+      ],
+      "id": "9FBLdpOb23n_"
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "GL_bE8HX23n_"
+      },
+      "source": [
+        "## Self-check\n",
+        "\n",
+        "Before you submit, confirm each line honestly:\n",
+        "\n",
+        "- [ ] Every section above is filled — markdown thinking AND the code that backs it\n",
+        "- [ ] The notebook runs top to bottom with no errors (Runtime → Run all)\n",
+        "- [ ] No client names, URLs, or private queries anywhere\n",
+        "- [ ] My claims use careful words: observed, measured, directional, decision-support\n",
+        "- [ ] Committed to my repo under `work/notebooks/` — then submit your repo URL on the card. Done."
+      ],
+      "id": "GL_bE8HX23n_"
+    }
+  ],
+  "metadata": {
+    "kernelspec": {
+      "display_name": "Python 3",
+      "name": "python3"
+    },
+    "language_info": {
+      "name": "python"
+    },
+    "colab": {
+      "provenance": [],
+      "include_colab_link": true
+    }
+  },
+  "nbformat": 4,
+  "nbformat_minor": 5
+}
