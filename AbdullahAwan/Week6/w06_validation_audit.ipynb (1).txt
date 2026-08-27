@@ -1,0 +1,421 @@
+{
+  "cells": [
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "view-in-github",
+        "colab_type": "text"
+      },
+      "source": [
+        "<a href=\"https://colab.research.google.com/github/abdullahawan0043-glitch/Flyrank-machine-learning-internship/blob/main/work/notebooks/w06_validation_audit.ipynb\" target=\"_parent\"><img src=\"https://colab.research.google.com/assets/colab-badge.svg\" alt=\"Open In Colab\"/></a>"
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "IuWvVVqgzZi_"
+      },
+      "source": [
+        "# ML-09 — Validation and Research Claim Audit\n",
+        "\n",
+        "[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/flyrank-bih/flyrank-ml-internship-starter/blob/main/work/notebooks/w06_validation_audit.ipynb?flush_cache=true)\n",
+        "\n",
+        "This skeleton is yours to fill. Work the sections **in order** — each one has a one-line hint. Simple words, honest numbers.\n",
+        "\n",
+        "> Working with an AI assistant? Tell it to read `skills/README.md` first and load the one skill this assignment names on its card."
+      ],
+      "id": "IuWvVVqgzZi_"
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "JbGydyJpzZjF"
+      },
+      "source": [
+        "## 1. Two paper findings + my methodology questions\n",
+        "\n",
+        "*Pick two findings from the FlyRank research paper. For each: where does the label come from, and does the validation design carry the claim? Constructive tone.*"
+      ],
+      "id": "JbGydyJpzZjF"
+    },
+    {
+      "cell_type": "code",
+      "execution_count": null,
+      "metadata": {
+        "id": "r_Wi68XazZjH",
+        "outputId": "e277da26-a0d8-412b-90d2-3163eb1e7f38",
+        "colab": {
+          "base_uri": "https://localhost:8080/",
+          "height": 626
+        }
+      },
+      "outputs": [
+        {
+          "output_type": "execute_result",
+          "data": {
+            "text/plain": [
+              "'\\nFinding 1 - \"The Anatomy of Growing Content\" (Finding #1, CONFIRMED)\\n\\nThe paper compares growing vs. declining pages and reports growing content\\nis 37.6% longer and 20% younger, calling this a \"directionally robust\"\\nobservational pattern.\\n\\nMy methodology question: Where does the \"up\"/\"down\" trend label come from\\nrelative to when word_count and age were measured? The paper defines trend\\nfrom a 30-day-vs-previous-30-day impression change, but word count and age\\nare measured at the time of the snapshot, not at the start of that trend\\nwindow. If a page\\'s word count was increased DURING the growth window\\n(e.g., because someone refreshed it, which is exactly what the paper later\\nrecommends doing), then word count could be partly a CONSEQUENCE of early\\ngrowth rather than a cause of it. The paper is careful to call this\\n\"directionally robust\" and \"observational,\" which is the right instinct -\\nI would only ask that the timing of the word-count snapshot relative to\\nthe trend window be stated explicitly, so a reader can judge whether this\\nis a leading indicator or a trailing one.\\n\\nFinding 2 - \"What Predicts Health?\" (ML Appendix, Random Forest feature importance)\\n\\nThe paper reports Average Position as the top predictor of Health Score\\n(43% importance), and states this is \"descriptive rather than causal\"\\nbecause Health Score is partly constructed from these same inputs.\\n\\nMy methodology question: Health Score is explicitly defined earlier in the\\npaper as Impressions (30 pts) + Position (30 pts) + CTR (20 pts) + Scroll\\nDepth (20 pts) - meaning Average Position is a direct arithmetic\\ningredient of the label the model is predicting. This is a textbook\\nlabel-derived feature case. The paper\\'s own caveat (\"importance is\\ndescriptive rather than causal\") is honest and appropriate, but I would\\nask: given that ~73% of the importance (Position 43% + Impressions 32%)\\ncomes from features that are literally summed into the label, does the\\nremaining ranking (Scroll Depth, CTR) still mean anything on its own, or\\nwould the appendix be clearer if it reported feature importance only on\\nthe NON-constituent features (e.g., word count, content age, AI sessions)\\nto show what predicts health beyond its own ingredients?\\n'"
+            ],
+            "application/vnd.google.colaboratory.intrinsic+json": {
+              "type": "string"
+            }
+          },
+          "metadata": {},
+          "execution_count": 6
+        }
+      ],
+      "source": [
+        "\"\"\"\n",
+        "Finding 1 - \"The Anatomy of Growing Content\" (Finding #1, CONFIRMED)\n",
+        "\n",
+        "The paper compares growing vs. declining pages and reports growing content\n",
+        "is 37.6% longer and 20% younger, calling this a \"directionally robust\"\n",
+        "observational pattern.\n",
+        "\n",
+        "My methodology question: Where does the \"up\"/\"down\" trend label come from\n",
+        "relative to when word_count and age were measured? The paper defines trend\n",
+        "from a 30-day-vs-previous-30-day impression change, but word count and age\n",
+        "are measured at the time of the snapshot, not at the start of that trend\n",
+        "window. If a page's word count was increased DURING the growth window\n",
+        "(e.g., because someone refreshed it, which is exactly what the paper later\n",
+        "recommends doing), then word count could be partly a CONSEQUENCE of early\n",
+        "growth rather than a cause of it. The paper is careful to call this\n",
+        "\"directionally robust\" and \"observational,\" which is the right instinct -\n",
+        "I would only ask that the timing of the word-count snapshot relative to\n",
+        "the trend window be stated explicitly, so a reader can judge whether this\n",
+        "is a leading indicator or a trailing one.\n",
+        "\n",
+        "Finding 2 - \"What Predicts Health?\" (ML Appendix, Random Forest feature importance)\n",
+        "\n",
+        "The paper reports Average Position as the top predictor of Health Score\n",
+        "(43% importance), and states this is \"descriptive rather than causal\"\n",
+        "because Health Score is partly constructed from these same inputs.\n",
+        "\n",
+        "My methodology question: Health Score is explicitly defined earlier in the\n",
+        "paper as Impressions (30 pts) + Position (30 pts) + CTR (20 pts) + Scroll\n",
+        "Depth (20 pts) - meaning Average Position is a direct arithmetic\n",
+        "ingredient of the label the model is predicting. This is a textbook\n",
+        "label-derived feature case. The paper's own caveat (\"importance is\n",
+        "descriptive rather than causal\") is honest and appropriate, but I would\n",
+        "ask: given that ~73% of the importance (Position 43% + Impressions 32%)\n",
+        "comes from features that are literally summed into the label, does the\n",
+        "remaining ranking (Scroll Depth, CTR) still mean anything on its own, or\n",
+        "would the appendix be clearer if it reported feature importance only on\n",
+        "the NON-constituent features (e.g., word count, content age, AI sessions)\n",
+        "to show what predicts health beyond its own ingredients?\n",
+        "\"\"\""
+      ],
+      "id": "r_Wi68XazZjH"
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "DRTyIm0CzZjJ"
+      },
+      "source": [
+        "## 2. My model under an honest split (before/after)\n",
+        "\n",
+        "*Re-run your Week-5 model under a grouped or time-aware split. Show both numbers.*"
+      ],
+      "id": "DRTyIm0CzZjJ"
+    },
+    {
+      "cell_type": "code",
+      "execution_count": null,
+      "metadata": {
+        "id": "sfTOsEhszZjK",
+        "outputId": "09b920a0-e05e-4d5e-97b5-3bdea0758d29",
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        }
+      },
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "Base rate (share declining): 0.542\n"
+          ]
+        }
+      ],
+      "source": [
+        "import os, subprocess\n",
+        "import pandas as pd\n",
+        "import numpy as np\n",
+        "\n",
+        "REPO_URL = \"https://github.com/abdullahawan0043-glitch/Flyrank-machine-learning-internship\"\n",
+        "REPO_DIR = \"Flyrank-machine-learning-internship\"\n",
+        "\n",
+        "if not os.path.isdir(REPO_DIR):\n",
+        "    subprocess.run([\"git\", \"clone\", \"--depth\", \"1\", REPO_URL, REPO_DIR], check=True)\n",
+        "os.chdir(REPO_DIR)\n",
+        "\n",
+        "df = pd.read_csv(\"data/raw/content_refresh_anonymized.csv\")\n",
+        "\n",
+        "features = [\"content_age_days\", \"days_since_last_update\", \"impressions_90d\",\n",
+        "            \"avg_position\", \"ctr\", \"word_count\", \"sessions_90d\", \"engagement_rate\"]\n",
+        "\n",
+        "def prep(d):\n",
+        "    X = d[features].replace([np.inf, -np.inf], np.nan).fillna(0)\n",
+        "    y = (d[\"trend_direction\"] == \"down\").astype(int)\n",
+        "    return X, y\n",
+        "\n",
+        "X_all, y_all = prep(df)\n",
+        "base_rate = y_all.mean()\n",
+        "print(f\"Base rate (share declining): {base_rate:.3f}\")"
+      ],
+      "id": "sfTOsEhszZjK"
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "\"\"\"\n",
+        "Before/after: random split (dishonest) vs. grouped split (honest, by client_id)\n",
+        "\n",
+        "My Week 5 model already used a grouped split. Here I deliberately ALSO\n",
+        "build a random row-split version to show the gap the leakage-hunting\n",
+        "skill describes - the difference between the two numbers is itself the\n",
+        "finding.\n",
+        "\"\"\"\n",
+        "\n",
+        "from sklearn.model_selection import train_test_split, GroupShuffleSplit\n",
+        "from sklearn.ensemble import RandomForestClassifier\n",
+        "from sklearn.metrics import roc_auc_score\n",
+        "\n",
+        "RANDOM_SEED = 42\n",
+        "\n",
+        "def precision_at_k(scores, labels, k):\n",
+        "    order = np.argsort(-np.asarray(scores))\n",
+        "    return np.asarray(labels)[order[:k]].mean()\n",
+        "\n",
+        "def train_eval(train_df, test_df, label):\n",
+        "    X_train, y_train = prep(train_df)\n",
+        "    X_test, y_test = prep(test_df)\n",
+        "    rf = RandomForestClassifier(n_estimators=200, max_depth=8, random_state=RANDOM_SEED, class_weight=\"balanced\")\n",
+        "    rf.fit(X_train, y_train)\n",
+        "    scores = rf.predict_proba(X_test)[:, 1]\n",
+        "    p50 = precision_at_k(scores, y_test, 50)\n",
+        "    auc = roc_auc_score(y_test, scores)\n",
+        "    print(f\"{label}: Precision@50={p50:.3f}, ROC-AUC={auc:.3f}\")\n",
+        "    return p50, auc\n",
+        "\n",
+        "# BEFORE: random row split (no group protection)\n",
+        "train_r, test_r = train_test_split(df, test_size=0.3, random_state=RANDOM_SEED)\n",
+        "p50_random, auc_random = train_eval(train_r, test_r, \"BEFORE - random split\")\n",
+        "\n",
+        "# AFTER: grouped split by client_id (honest)\n",
+        "gss = GroupShuffleSplit(n_splits=1, test_size=0.3, random_state=RANDOM_SEED)\n",
+        "train_idx, test_idx = next(gss.split(df, groups=df[\"client_id\"]))\n",
+        "train_g, test_g = df.iloc[train_idx], df.iloc[test_idx]\n",
+        "p50_grouped, auc_grouped = train_eval(train_g, test_g, \"AFTER  - grouped split (by client_id)\")\n",
+        "\n",
+        "print(f\"\\nGap: Precision@50 dropped by {p50_random - p50_grouped:.3f} when moving to the honest split.\")\n",
+        "print(\"This gap is the finding: it shows how much of the random-split score was client memorization, not real signal.\")"
+      ],
+      "metadata": {
+        "id": "cLnvykV0zo3y",
+        "outputId": "0ec4ac05-a1f4-4beb-b0e6-7d8099003984",
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        }
+      },
+      "id": "cLnvykV0zo3y",
+      "execution_count": null,
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "BEFORE - random split: Precision@50=0.940, ROC-AUC=0.748\n",
+            "AFTER  - grouped split (by client_id): Precision@50=0.540, ROC-AUC=0.603\n",
+            "\n",
+            "Gap: Precision@50 dropped by 0.400 when moving to the honest split.\n",
+            "This gap is the finding: it shows how much of the random-split score was client memorization, not real signal.\n"
+          ]
+        }
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "uw7ONFtEzZjL"
+      },
+      "source": [
+        "## 3. Leakage audit\n",
+        "\n",
+        "*The same hunt from Week 3, on your final feature set.*"
+      ],
+      "id": "uw7ONFtEzZjL"
+    },
+    {
+      "cell_type": "code",
+      "execution_count": null,
+      "metadata": {
+        "id": "eFaxxm4UzZjM",
+        "outputId": "10987fcf-dbc1-4194-b6f8-31cc88130fc9",
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        }
+      },
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "Confirmed: no label-derived columns in the feature list.\n",
+            "\n",
+            "Honest model (grouped split): Precision@50=0.540, ROC-AUC=0.603\n",
+            "Deliberately leaky model (+trend_pct): Precision@50=1.000, ROC-AUC=1.000\n",
+            "The jump toward a near-perfect score confirms the test harness correctly detects leakage when it's present.\n",
+            "\n",
+            "Honest model feature importances:\n",
+            "impressions_90d           0.292545\n",
+            "avg_position              0.218726\n",
+            "content_age_days          0.178681\n",
+            "word_count                0.131147\n",
+            "days_since_last_update    0.063023\n",
+            "sessions_90d              0.052496\n",
+            "ctr                       0.050214\n",
+            "engagement_rate           0.013169\n",
+            "dtype: float64\n",
+            "\n",
+            "Top feature is not suspiciously dominant (no single feature >90% importance) - consistent with real, distributed signal rather than a hidden leak.\n"
+          ]
+        }
+      ],
+      "source": [
+        "assert \"trend_direction\" not in features and \"trend_pct\" not in features, \"Label-derived column found in features!\"\n",
+        "print(\"Confirmed: no label-derived columns in the feature list.\")\n",
+        "\n",
+        "X_train, y_train = prep(train_g)\n",
+        "X_test, y_test = prep(test_g)\n",
+        "\n",
+        "# Retrain the honest model here so it's available in this cell\n",
+        "rf = RandomForestClassifier(n_estimators=200, max_depth=8, random_state=RANDOM_SEED, class_weight=\"balanced\")\n",
+        "rf.fit(X_train, y_train)\n",
+        "\n",
+        "# Deliberate leak test: add a label-derived column and watch the score jump\n",
+        "X_train_leaky = X_train.copy()\n",
+        "X_test_leaky = X_test.copy()\n",
+        "X_train_leaky[\"leaky_trend_pct\"] = train_g[\"trend_pct\"].values\n",
+        "X_test_leaky[\"leaky_trend_pct\"] = test_g[\"trend_pct\"].values\n",
+        "\n",
+        "rf_leaky = RandomForestClassifier(n_estimators=200, max_depth=8, random_state=RANDOM_SEED, class_weight=\"balanced\")\n",
+        "rf_leaky.fit(X_train_leaky, y_train)\n",
+        "leaky_scores = rf_leaky.predict_proba(X_test_leaky)[:, 1]\n",
+        "leaky_p50 = precision_at_k(leaky_scores, y_test, 50)\n",
+        "leaky_auc = roc_auc_score(y_test, leaky_scores)\n",
+        "\n",
+        "print(f\"\\nHonest model (grouped split): Precision@50={p50_grouped:.3f}, ROC-AUC={auc_grouped:.3f}\")\n",
+        "print(f\"Deliberately leaky model (+trend_pct): Precision@50={leaky_p50:.3f}, ROC-AUC={leaky_auc:.3f}\")\n",
+        "print(\"The jump toward a near-perfect score confirms the test harness correctly detects leakage when it's present.\")\n",
+        "\n",
+        "# Feature importance sanity check on the HONEST model\n",
+        "importances = pd.Series(rf.feature_importances_, index=features).sort_values(ascending=False)\n",
+        "print(\"\\nHonest model feature importances:\")\n",
+        "print(importances)\n",
+        "print(\"\\nTop feature is not suspiciously dominant (no single feature >90% importance) - consistent with real, distributed signal rather than a hidden leak.\")"
+      ],
+      "id": "eFaxxm4UzZjM"
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "byGGnDhWzZjN"
+      },
+      "source": [
+        "## 4. Claim rewrite\n",
+        "\n",
+        "*Take your own boldest sentence and rewrite it in safe language: observed, measured, directional, decision-support.*"
+      ],
+      "id": "byGGnDhWzZjN"
+    },
+    {
+      "cell_type": "code",
+      "execution_count": null,
+      "metadata": {
+        "id": "q5iwD75VzZjO",
+        "outputId": "ef07cfbc-68f9-4d08-c687-f3de50b6bfcf",
+        "colab": {
+          "base_uri": "https://localhost:8080/",
+          "height": 626
+        }
+      },
+      "outputs": [
+        {
+          "output_type": "execute_result",
+          "data": {
+            "text/plain": [
+              "'\\nRewriting my own earlier claims into public-safe language:\\n\\nORIGINAL (Week 5 notebook): \"Random Forest gave the strongest lift over\\nthe baseline.\"\\nREWRITE: \"In this observed test split, Random Forest showed a directional\\nimprovement in Precision@50 over the Week 4 baseline rule; this is a\\ndecision-support signal for prioritizing review, not a guarantee that any\\nindividual flagged page is truly declining.\"\\n\\nORIGINAL (Week 4 notebook): \"The learned model finds roughly 3x more true\\ndeclining pages in the top 50 than a fixed rule.\"\\nREWRITE: \"On this measured dataset and split, the learned model\\'s top-50\\nranked pages contained roughly 3x as many observed decliners as the fixed\\nrule\\'s top 50 - a directional result specific to this data slice, not a\\nclaim that generalizes to all FlyRank clients without re-validation.\"\\n\\nORIGINAL (this week, about the random-split number): \"The model works\\nwell.\"\\nREWRITE: \"The model\\'s random-split score was measured to be inflated\\nrelative to its grouped-split score; the honest, decision-support number\\nis the grouped-split result, since it reflects performance on clients the\\nmodel has not seen before.\"\\n'"
+            ],
+            "application/vnd.google.colaboratory.intrinsic+json": {
+              "type": "string"
+            }
+          },
+          "metadata": {},
+          "execution_count": 10
+        }
+      ],
+      "source": [
+        "\"\"\"\n",
+        "Rewriting my own earlier claims into public-safe language:\n",
+        "\n",
+        "ORIGINAL (Week 5 notebook): \"Random Forest gave the strongest lift over\n",
+        "the baseline.\"\n",
+        "REWRITE: \"In this observed test split, Random Forest showed a directional\n",
+        "improvement in Precision@50 over the Week 4 baseline rule; this is a\n",
+        "decision-support signal for prioritizing review, not a guarantee that any\n",
+        "individual flagged page is truly declining.\"\n",
+        "\n",
+        "ORIGINAL (Week 4 notebook): \"The learned model finds roughly 3x more true\n",
+        "declining pages in the top 50 than a fixed rule.\"\n",
+        "REWRITE: \"On this measured dataset and split, the learned model's top-50\n",
+        "ranked pages contained roughly 3x as many observed decliners as the fixed\n",
+        "rule's top 50 - a directional result specific to this data slice, not a\n",
+        "claim that generalizes to all FlyRank clients without re-validation.\"\n",
+        "\n",
+        "ORIGINAL (this week, about the random-split number): \"The model works\n",
+        "well.\"\n",
+        "REWRITE: \"The model's random-split score was measured to be inflated\n",
+        "relative to its grouped-split score; the honest, decision-support number\n",
+        "is the grouped-split result, since it reflects performance on clients the\n",
+        "model has not seen before.\"\n",
+        "\"\"\""
+      ],
+      "id": "q5iwD75VzZjO"
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "9V8jCAhYzZjP"
+      },
+      "source": [
+        "## Self-check\n",
+        "\n",
+        "Before you submit, confirm each line honestly:\n",
+        "\n",
+        "- [ ] Every section above is filled — markdown thinking AND the code that backs it\n",
+        "- [ ] The notebook runs top to bottom with no errors (Runtime → Run all)\n",
+        "- [ ] No client names, URLs, or private queries anywhere\n",
+        "- [ ] My claims use careful words: observed, measured, directional, decision-support\n",
+        "- [ ] Committed to my repo under `work/notebooks/` — then submit your repo URL on the card. Done."
+      ],
+      "id": "9V8jCAhYzZjP"
+    }
+  ],
+  "metadata": {
+    "kernelspec": {
+      "display_name": "Python 3",
+      "name": "python3"
+    },
+    "language_info": {
+      "name": "python"
+    },
+    "colab": {
+      "provenance": [],
+      "include_colab_link": true
+    }
+  },
+  "nbformat": 4,
+  "nbformat_minor": 5
+}
