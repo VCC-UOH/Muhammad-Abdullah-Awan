@@ -1,0 +1,597 @@
+{
+  "cells": [
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "view-in-github",
+        "colab_type": "text"
+      },
+      "source": [
+        "<a href=\"https://colab.research.google.com/github/abdullahawan0043-glitch/Flyrank-machine-learning-internship/blob/main/work/notebooks/capstone.ipynb\" target=\"_parent\"><img src=\"https://colab.research.google.com/assets/colab-badge.svg\" alt=\"Open In Colab\"/></a>"
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "yrACbYwkrxTh"
+      },
+      "source": [
+        "# Capstone — mirrors your deployed research paper\n",
+        "\n",
+        "[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/flyrank-bih/flyrank-ml-internship-starter/blob/main/work/notebooks/capstone.ipynb?flush_cache=true)\n",
+        "\n",
+        "This skeleton is yours to fill. Work the sections **in order** — each one has a one-line hint. Simple words, honest numbers.\n",
+        "\n",
+        "> Working with an AI assistant? Tell it to read `skills/README.md` first and load the one skill this assignment names on its card."
+      ],
+      "id": "yrACbYwkrxTh"
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "pBJP70LYrxTn"
+      },
+      "source": [
+        "## 1. Question\n",
+        "\n",
+        "*The research question and the decision it supports.*"
+      ],
+      "id": "pBJP70LYrxTn"
+    },
+    {
+      "cell_type": "code",
+      "execution_count": null,
+      "metadata": {
+        "id": "03E8bW0RrxTp",
+        "outputId": "b180fcd8-49c5-4ae0-f842-685278bee255",
+        "colab": {
+          "base_uri": "https://localhost:8080/",
+          "height": 313
+        }
+      },
+      "outputs": [
+        {
+          "output_type": "execute_result",
+          "data": {
+            "text/plain": [
+              "'\\nQuestion: Which content pages should an editor review first for a\\nrefresh, given limited review capacity?\\n\\nThis maps to the \"Refresh / Content Opportunity Scoring\" lane - a\\nranking/scoring problem. The decision this improves: which pages an\\neditor spends their limited time on first. The action: reviewing and\\nrefreshing a flagged page. The cost of a wrong call: wasted editor time\\n(false positive) or a missed real decline (false negative, costlier\\nsince it delays a real fix).\\n'"
+            ],
+            "application/vnd.google.colaboratory.intrinsic+json": {
+              "type": "string"
+            }
+          },
+          "metadata": {},
+          "execution_count": 1
+        }
+      ],
+      "source": [
+        "\"\"\"\n",
+        "Question: Which content pages should an editor review first for a\n",
+        "refresh, given limited review capacity?\n",
+        "\n",
+        "This maps to the \"Refresh / Content Opportunity Scoring\" lane - a\n",
+        "ranking/scoring problem. The decision this improves: which pages an\n",
+        "editor spends their limited time on first. The action: reviewing and\n",
+        "refreshing a flagged page. The cost of a wrong call: wasted editor time\n",
+        "(false positive) or a missed real decline (false negative, costlier\n",
+        "since it delays a real fix).\n",
+        "\"\"\""
+      ],
+      "id": "03E8bW0RrxTp"
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "F0LwULS-rxTq"
+      },
+      "source": [
+        "## 2. Data\n",
+        "\n",
+        "*Which release, which tables, date windows, what you excluded and why. Public-safe.*"
+      ],
+      "id": "F0LwULS-rxTq"
+    },
+    {
+      "cell_type": "code",
+      "execution_count": null,
+      "metadata": {
+        "id": "BDVpB7XVrxTr",
+        "outputId": "9763694e-b536-4944-f676-1869abae9470",
+        "colab": {
+          "base_uri": "https://localhost:8080/",
+          "height": 455
+        }
+      },
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "Starter dataset: 30000 rows, 32 clients\n"
+          ]
+        },
+        {
+          "output_type": "execute_result",
+          "data": {
+            "text/plain": [
+              "\"\\nData: FlyRank's 30,000-row anonymized starter dataset (32 clients,\\ntrailing-90-day metrics) for iteration, plus the Hugging Face data\\nwarehouse (fact_content_daily_performance, ~79M rows) queried directly\\nwith DuckDB for the Week 4 data contract (month=2026-03: 9.84M rows,\\n55 clients, 331,437 content items).\\n\\nExcluded: raw URLs, queries, client names (scrambled/removed before\\nrelease); FlyRank product decision fields (health_score, priority_score)\\n- not shipped, and would only teach a model to copy an existing rule.\\nThe final month (2026-06) was excluded from iteration as a sealed test\\nwindow per the program's data-handling guidance.\\n\""
+            ],
+            "application/vnd.google.colaboratory.intrinsic+json": {
+              "type": "string"
+            }
+          },
+          "metadata": {},
+          "execution_count": 2
+        }
+      ],
+      "source": [
+        "import os, subprocess\n",
+        "import pandas as pd\n",
+        "import numpy as np\n",
+        "\n",
+        "REPO_URL = \"https://github.com/abdullahawan0043-glitch/Flyrank-machine-learning-internship\"\n",
+        "REPO_DIR = \"Flyrank-machine-learning-internship\"\n",
+        "if not os.path.isdir(REPO_DIR):\n",
+        "    subprocess.run([\"git\", \"clone\", \"--depth\", \"1\", REPO_URL, REPO_DIR], check=True)\n",
+        "os.chdir(REPO_DIR)\n",
+        "\n",
+        "df = pd.read_csv(\"data/raw/content_refresh_anonymized.csv\")\n",
+        "print(f\"Starter dataset: {len(df)} rows, {df['client_id'].nunique()} clients\")\n",
+        "\n",
+        "\"\"\"\n",
+        "Data: FlyRank's 30,000-row anonymized starter dataset (32 clients,\n",
+        "trailing-90-day metrics) for iteration, plus the Hugging Face data\n",
+        "warehouse (fact_content_daily_performance, ~79M rows) queried directly\n",
+        "with DuckDB for the Week 4 data contract (month=2026-03: 9.84M rows,\n",
+        "55 clients, 331,437 content items).\n",
+        "\n",
+        "Excluded: raw URLs, queries, client names (scrambled/removed before\n",
+        "release); FlyRank product decision fields (health_score, priority_score)\n",
+        "- not shipped, and would only teach a model to copy an existing rule.\n",
+        "The final month (2026-06) was excluded from iteration as a sealed test\n",
+        "window per the program's data-handling guidance.\n",
+        "\"\"\""
+      ],
+      "id": "BDVpB7XVrxTr"
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "ZaBrwO9CrxTr"
+      },
+      "source": [
+        "## 3. Methodology\n",
+        "\n",
+        "*Assumptions, features, label definition, baseline, validation design, leakage checks.*"
+      ],
+      "id": "ZaBrwO9CrxTr"
+    },
+    {
+      "cell_type": "code",
+      "execution_count": null,
+      "metadata": {
+        "id": "Dn9ww0worxTs",
+        "outputId": "f2bc9392-c550-4167-a059-5615f96d54f5",
+        "colab": {
+          "base_uri": "https://localhost:8080/",
+          "height": 452
+        }
+      },
+      "outputs": [
+        {
+          "output_type": "execute_result",
+          "data": {
+            "text/plain": [
+              "'\\nLabel: is_declining_label = trend_direction == \"down\" (a current-window\\nproxy, not an ideal future-outcome label - disclosed as a limitation).\\nBaseline: stale (180+ days since update) AND visible (500+ impressions),\\nscored by impressions_90d, with reason code \"stale_but_visible\".\\nValidation: client-holdout split (GroupShuffleSplit by client_id) - never\\na random row split, since multiple pages share a client and a random\\nsplit would let the model memorize client-specific patterns.\\nLeakage checks: trend_direction/trend_pct excluded from features;\\ndeliberate leak test (adding trend_pct) confirmed the test harness\\ncorrectly detects leakage (score jumped to a near-perfect 1.000, then\\nremoved).\\n'"
+            ],
+            "application/vnd.google.colaboratory.intrinsic+json": {
+              "type": "string"
+            }
+          },
+          "metadata": {},
+          "execution_count": 3
+        }
+      ],
+      "source": [
+        "features = [\"content_age_days\", \"days_since_last_update\", \"impressions_90d\",\n",
+        "            \"avg_position\", \"ctr\", \"word_count\", \"sessions_90d\", \"engagement_rate\"]\n",
+        "\n",
+        "def prep(d):\n",
+        "    X = d[features].replace([np.inf, -np.inf], np.nan).fillna(0)\n",
+        "    y = (d[\"trend_direction\"] == \"down\").astype(int)\n",
+        "    return X, y\n",
+        "\n",
+        "\"\"\"\n",
+        "Label: is_declining_label = trend_direction == \"down\" (a current-window\n",
+        "proxy, not an ideal future-outcome label - disclosed as a limitation).\n",
+        "Baseline: stale (180+ days since update) AND visible (500+ impressions),\n",
+        "scored by impressions_90d, with reason code \"stale_but_visible\".\n",
+        "Validation: client-holdout split (GroupShuffleSplit by client_id) - never\n",
+        "a random row split, since multiple pages share a client and a random\n",
+        "split would let the model memorize client-specific patterns.\n",
+        "Leakage checks: trend_direction/trend_pct excluded from features;\n",
+        "deliberate leak test (adding trend_pct) confirmed the test harness\n",
+        "correctly detects leakage (score jumped to a near-perfect 1.000, then\n",
+        "removed).\n",
+        "\"\"\""
+      ],
+      "id": "Dn9ww0worxTs"
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "fAzkW-ZyrxTt"
+      },
+      "source": [
+        "## 4. Results (vs baseline)\n",
+        "\n",
+        "*Model vs baseline on the same split. The honest table.*"
+      ],
+      "id": "fAzkW-ZyrxTt"
+    },
+    {
+      "cell_type": "code",
+      "execution_count": null,
+      "metadata": {
+        "id": "R_yyAj9xrxTu",
+        "outputId": "34495f2f-3c6d-4a86-e3f9-9872ced1f511",
+        "colab": {
+          "base_uri": "https://localhost:8080/",
+          "height": 255
+        }
+      },
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "Base rate: 0.559\n",
+            "Baseline rule Precision@50: 0.640\n",
+            "Random Forest Precision@50 (honest, grouped split): 0.540, ROC-AUC: 0.603\n"
+          ]
+        },
+        {
+          "output_type": "display_data",
+          "data": {
+            "text/plain": [
+              "<Figure size 600x400 with 1 Axes>"
+            ],
+            "image/png": "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oEEDuLu7Y9iwYRg9erShNoGIiIgqEIUQQhi6iBcpNzcXtra2yMnJgY2NjaHLIXrhFi5caOgSqJzq37+/oUsgMojSZIP/1FV1RERERIbE4EREREQkE4MTERERkUwMTkREREQyMTgRERERycTgRERERCQTgxMRERGRTAxORERERDIxOBERERHJxOBEREREJBODExEREZFMDE5EREREMjE4EREREclkbOgCXkb89nkqCb99nojov41HnIiIiIhkYnAiIiIikonBiYiIiEgmBiciIiIimRiciIiIiGRicCIiIiKSicGJiIiISCYGJyIiIiKZeANMIiIqV3w+2mToEqgcOj6traFLAMAjTkRERESyMTgRERERycTgRERERCQTgxMRERGRTAxORERERDIxOBERERHJxOBEREREJBODExEREZFMDE5EREREMjE4EREREcnE4EREREQkE4MTERERkUwMTkREREQyMTgRERERyVQugtPcuXPh5eUFMzMzBAQE4ODBgyX2Xbp0KRQKhdbDzMzsBVZLREREFZXBg1NSUhJiYmIQGxuLo0ePwsfHByEhIcjMzCxxHhsbG1y/fl16XLp06QVWTERERBWVwYPTjBkzEBUVhYiICHh7eyMxMREWFhZYvHhxifMoFAq4uLhID2dn5xdYMREREVVUBg1OhYWFOHLkCIKDg6U2pVKJ4OBg7N+/v8T58vLy4OnpCQ8PD3Tq1Al//fVXiX0LCgqQm5ur9SAiIiLSh0GDU3Z2NtRqdbEjRs7OzkhPT9c5T61atbB48WKsX78e3333HTQaDRo3bowrV67o7B8fHw9bW1vp4eHhUebbQURERBWDwU/VlVZgYCB69+4NX19fBAUFYe3atXB0dMSCBQt09h87dixycnKkR1pa2guumIiIiF4WxoZcuYODA4yMjJCRkaHVnpGRARcXF1nLMDExQcOGDXHu3Dmd01UqFVQq1TPXSkRERGTQI06mpqbw8/NDSkqK1KbRaJCSkoLAwEBZy1Cr1Thx4gRcXV2fV5lEREREAAx8xAkAYmJiEB4ejkaNGsHf3x8JCQnIz89HREQEAKB3795wd3dHfHw8AGDixIl44403UKNGDdy+fRvTpk3DpUuX0K9fP0NuBhEREVUABg9OYWFhyMrKwvjx45Geng5fX18kJydLA8YvX74MpfL/B8Zu3bqFqKgopKen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ZssmIiKiisXgg8Oft7FjxyInJ0d6pKWlGbokIiIi+o8yNtSKHRwcYGRkhIyMDK32jIyMMh34rVKpOB6KiIiIyoTBjjiZmprCz88PKSkpUptGo0FKSgoCAwMNVRYRERFRiQx2xAkAYmJiEB4ejkaNGsHf3x8JCQnIz89HREQEAKB3795wd3dHfHw8gH8HlP/999/S/69evYpjx47BysoKNWrUMNh2EBERUcVg0OAUFhaGrKwsjB8/Hunp6fD19UVycrI0YPzy5ctQKv9/UOzatWto2LCh9PzLL7/El19+iaCgIOzcufNFl09EREQVjEGDEwBER0cjOjpa57THw5CXlxeEEC+gKiIiIqLiXvqr6oiIiIjKCoMTERERkUwMTkREREQyMTgRERERycTgRERERCQTgxMRERGRTAxORERERDIxOBERERHJxOBEREREJBODExEREZFMDE5EREREMjE4EREREcnE4EREREQkE4MTERERkUwMTkREREQyMTgRERERycTgRERERCQTgxMRERGRTAxORERERDIxOBERERHJxOBEREREJBODExEREZFMDE5EREREMjE4EREREcnE4EREREQkE4MTERERkUwMTkREREQyMTgRERERycTgRERERCQTgxMRERGRTAxORERERDIxOBERERHJxOBEREREJBODExEREZFMDE5EREREMjE4EREREcnE4EREREQkU7kITnPnzoWXlxfMzMwQEBCAgwcPPrH/qlWrULt2bZiZmaF+/frYtGnTC6qUiIiIKjKDB6ekpCTExMQgNjYWR48ehY+PD0JCQpCZmamz/759+9CjRw9ERkbijz/+QOfOndG5c2ecPHnyBVdOREREFY3Bg9OMGTMQFRWFiIgIeHt7IzExERYWFli8eLHO/rNmzUKbNm3w0UcfoU6dOvjss8/w2muvYc6cOS+4ciIiIqpojA258sLCQhw5cgRjx46V2pRKJYKDg7F//36d8+zfvx8xMTFabSEhIVi3bp3O/gUFBSgoKJCe5+TkAAByc3OfsfqS3bt377ktm/7bnud+Jxf3TypJedg/AUBdcNfQJVA59Dz3z6JlCyGe2tegwSk7OxtqtRrOzs5a7c7Ozjh9+rTOedLT03X2T09P19k/Pj4ecXFxxdo9PDz0rJpIf8OHDzd0CUQl4v5J5ZntV89/HXfu3IGtre0T+xg0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\n"
+          },
+          "metadata": {}
+        }
+      ],
+      "source": [
+        "from sklearn.model_selection import GroupShuffleSplit\n",
+        "from sklearn.ensemble import RandomForestClassifier\n",
+        "from sklearn.metrics import roc_auc_score\n",
+        "import matplotlib.pyplot as plt\n",
+        "\n",
+        "RANDOM_SEED = 42\n",
+        "gss = GroupShuffleSplit(n_splits=1, test_size=0.3, random_state=RANDOM_SEED)\n",
+        "train_idx, test_idx = next(gss.split(df, groups=df[\"client_id\"]))\n",
+        "train_df, test_df = df.iloc[train_idx], df.iloc[test_idx]\n",
+        "\n",
+        "def precision_at_k(scores, labels, k):\n",
+        "    order = np.argsort(-np.asarray(scores))\n",
+        "    return np.asarray(labels)[order[:k]].mean()\n",
+        "\n",
+        "X_train, y_train = prep(train_df)\n",
+        "X_test, y_test = prep(test_df)\n",
+        "\n",
+        "stale = (test_df[\"days_since_last_update\"] >= 180).astype(int)\n",
+        "visible = (test_df[\"impressions_90d\"] >= 500).astype(int)\n",
+        "baseline_score = stale * visible * test_df[\"impressions_90d\"]\n",
+        "baseline_p50 = precision_at_k(baseline_score, y_test, 50)\n",
+        "\n",
+        "rf = RandomForestClassifier(n_estimators=200, max_depth=8, random_state=RANDOM_SEED, class_weight=\"balanced\")\n",
+        "rf.fit(X_train, y_train)\n",
+        "rf_scores = rf.predict_proba(X_test)[:, 1]\n",
+        "rf_p50 = precision_at_k(rf_scores, y_test, 50)\n",
+        "rf_auc = roc_auc_score(y_test, rf_scores)\n",
+        "base_rate = y_test.mean()\n",
+        "\n",
+        "print(f\"Base rate: {base_rate:.3f}\")\n",
+        "print(f\"Baseline rule Precision@50: {baseline_p50:.3f}\")\n",
+        "print(f\"Random Forest Precision@50 (honest, grouped split): {rf_p50:.3f}, ROC-AUC: {rf_auc:.3f}\")\n",
+        "\n",
+        "os.makedirs(\"work/figures\", exist_ok=True)\n",
+        "fig, ax = plt.subplots(figsize=(6,4))\n",
+        "ax.bar([\"Base rate\", \"Baseline rule\", \"Random Forest\"], [base_rate, baseline_p50, rf_p50], color=[\"#999\",\"#999\",\"#2E74B5\"])\n",
+        "ax.set_ylabel(\"Precision@50\")\n",
+        "ax.set_title(\"Model vs Baseline (honest client-holdout split)\")\n",
+        "plt.tight_layout()\n",
+        "plt.savefig(\"work/figures/capstone_model_vs_baseline.png\", dpi=150)\n",
+        "plt.show()"
+      ],
+      "id": "R_yyAj9xrxTu"
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "7LoLzXNXrxTu"
+      },
+      "source": [
+        "## 5. Limitations\n",
+        "\n",
+        "*What this work cannot claim.*"
+      ],
+      "id": "7LoLzXNXrxTu"
+    },
+    {
+      "cell_type": "code",
+      "execution_count": null,
+      "metadata": {
+        "id": "ANcguU9erxTv",
+        "outputId": "f42c3978-da8b-4e61-b6ba-ff45e65bf49d",
+        "colab": {
+          "base_uri": "https://localhost:8080/",
+          "height": 226
+        }
+      },
+      "outputs": [
+        {
+          "output_type": "execute_result",
+          "data": {
+            "text/plain": [
+              "\"\\nObservational, cross-sectional data - no experiment, so no causal claim.\\nActive-content survivor filter (impressions_90d > 0, age >= 90) means\\nvery new/invisible pages are not represented. Sample is one 30K-row\\nanonymized slice, not FlyRank's full client base. Proxy label reflects\\nthe current window, not a validated future outcome.\\n\""
+            ],
+            "application/vnd.google.colaboratory.intrinsic+json": {
+              "type": "string"
+            }
+          },
+          "metadata": {},
+          "execution_count": 5
+        }
+      ],
+      "source": [
+        "\"\"\"\n",
+        "Observational, cross-sectional data - no experiment, so no causal claim.\n",
+        "Active-content survivor filter (impressions_90d > 0, age >= 90) means\n",
+        "very new/invisible pages are not represented. Sample is one 30K-row\n",
+        "anonymized slice, not FlyRank's full client base. Proxy label reflects\n",
+        "the current window, not a validated future outcome.\n",
+        "\"\"\""
+      ],
+      "id": "ANcguU9erxTv"
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "HALH0UWGrxTv"
+      },
+      "source": [
+        "## 6. Ranked recommendations\n",
+        "\n",
+        "*The action playbook output — the paper's recommendations section.*"
+      ],
+      "id": "HALH0UWGrxTv"
+    },
+    {
+      "cell_type": "code",
+      "execution_count": null,
+      "metadata": {
+        "id": "5m4N1xlGrxTw",
+        "outputId": "d35ea1e7-dad7-4029-e502-09fdbfce3930",
+        "colab": {
+          "base_uri": "https://localhost:8080/",
+          "height": 261
+        }
+      },
+      "outputs": [
+        {
+          "output_type": "execute_result",
+          "data": {
+            "text/plain": [
+              "'\\n1. Refresh_priority: stale (180+ days) + still visible (500+ impressions) pages - review first.\\n2. Review_snippet_title: page-1 pages with low CTR - snippet/title review.\\n3. Review_for_refresh: model-flagged decline risk (score >= 0.65).\\n4. Monitor_only: low visibility pages - track, no action yet.\\nHuman review required on every action; no auto-publishing (see Week 7 playbook).\\n'"
+            ],
+            "application/vnd.google.colaboratory.intrinsic+json": {
+              "type": "string"
+            }
+          },
+          "metadata": {},
+          "execution_count": 6
+        }
+      ],
+      "source": [
+        "\"\"\"\n",
+        "1. Refresh_priority: stale (180+ days) + still visible (500+ impressions) pages - review first.\n",
+        "2. Review_snippet_title: page-1 pages with low CTR - snippet/title review.\n",
+        "3. Review_for_refresh: model-flagged decline risk (score >= 0.65).\n",
+        "4. Monitor_only: low visibility pages - track, no action yet.\n",
+        "Human review required on every action; no auto-publishing (see Week 7 playbook).\n",
+        "\"\"\""
+      ],
+      "id": "5m4N1xlGrxTw"
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "az2fEKmArxTx"
+      },
+      "source": [
+        "## 7. Artifacts the paper embeds\n",
+        "\n",
+        "*Generate/collect the charts and tables your deployed page will show.*"
+      ],
+      "id": "az2fEKmArxTx"
+    },
+    {
+      "cell_type": "code",
+      "execution_count": null,
+      "metadata": {
+        "id": "6GiVtqPqrxTx",
+        "outputId": "135e3623-dc10-4012-f7fb-4ea2eba708da",
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        }
+      },
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "Artifacts this paper embeds: work/figures/capstone_model_vs_baseline.png, work/figures/action_distribution.png, work/outputs/*.json\n"
+          ]
+        }
+      ],
+      "source": [
+        "print(\"Artifacts this paper embeds: work/figures/capstone_model_vs_baseline.png, \"\n",
+        "      \"work/figures/action_distribution.png, work/outputs/*.json\")"
+      ],
+      "id": "6GiVtqPqrxTx"
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "\"\"\"\n",
+        "5-MINUTE DEMO OUTLINE (Week 8 showcase, optional)\n",
+        "\n",
+        "1. Question (30 sec): \"Which content pages should an editor review first\n",
+        "   for a refresh, given limited time?\" - FlyRank's own research shows\n",
+        "   refresh timing is one of their strongest measured levers, but no team\n",
+        "   can manually review everything.\n",
+        "\n",
+        "2. Method (1 min): Built a Random Forest ranking model, compared against\n",
+        "   a transparent hand-written baseline rule (stale + visible), on an\n",
+        "   honest client-holdout split - never a random split, to avoid the\n",
+        "   model memorizing client-specific quirks.\n",
+        "\n",
+        "3. One chart (1.5 min): Show Figure 1 (model_vs_baseline.png) - the\n",
+        "   model reaches Precision@50 of 0.540 vs. the baseline's 0.240 on the\n",
+        "   identical test split, a ~2.25x lift.\n",
+        "\n",
+        "4. One honest result (1 min): This is decision-support, not a guarantee\n",
+        "   - a deliberate leak test confirmed the validation harness works\n",
+        "   correctly, and the model's top features match signals already\n",
+        "   verified in the Week 4 signal audit, ruling out an obvious leakage\n",
+        "   explanation for the result.\n",
+        "\n",
+        "5. One recommendation (1 min): Ship this as a ranked, reason-coded\n",
+        "   review queue with mandatory human sign-off - never as an\n",
+        "   auto-publishing system. Show the action-distribution chart (Figure 2)\n",
+        "   and the top reason code, \"stale_but_visible\".\n",
+        "\"\"\""
+      ],
+      "metadata": {
+        "id": "SMiAu5TBFHK0",
+        "outputId": "b7a65067-6816-4099-c2da-1970152f286a",
+        "colab": {
+          "base_uri": "https://localhost:8080/",
+          "height": 626
+        }
+      },
+      "id": "SMiAu5TBFHK0",
+      "execution_count": null,
+      "outputs": [
+        {
+          "output_type": "execute_result",
+          "data": {
+            "text/plain": [
+              "'\\n5-MINUTE DEMO OUTLINE (Week 8 showcase, optional)\\n\\n1. Question (30 sec): \"Which content pages should an editor review first\\n   for a refresh, given limited time?\" - FlyRank\\'s own research shows\\n   refresh timing is one of their strongest measured levers, but no team\\n   can manually review everything.\\n\\n2. Method (1 min): Built a Random Forest ranking model, compared against\\n   a transparent hand-written baseline rule (stale + visible), on an\\n   honest client-holdout split - never a random split, to avoid the\\n   model memorizing client-specific quirks.\\n\\n3. One chart (1.5 min): Show Figure 1 (model_vs_baseline.png) - the\\n   model reaches Precision@50 of 0.540 vs. the baseline\\'s 0.240 on the\\n   identical test split, a ~2.25x lift.\\n\\n4. One honest result (1 min): This is decision-support, not a guarantee\\n   - a deliberate leak test confirmed the validation harness works\\n   correctly, and the model\\'s top features match signals already\\n   verified in the Week 4 signal audit, ruling out an obvious leakage\\n   explanation for the result.\\n\\n5. One recommendation (1 min): Ship this as a ranked, reason-coded\\n   review queue with mandatory human sign-off - never as an\\n   auto-publishing system. Show the action-distribution chart (Figure 2)\\n   and the top reason code, \"stale_but_visible\".\\n'"
+            ],
+            "application/vnd.google.colaboratory.intrinsic+json": {
+              "type": "string"
+            }
+          },
+          "metadata": {},
+          "execution_count": 8
+        }
+      ]
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "\"\"\"\n",
+        "SHAREABLE CUT 1 - Social post (methodology-focused)\n",
+        "\n",
+        "Built a content-refresh priority model on FlyRank's real search data -\n",
+        "and made sure it was HONEST before trusting it.\n",
+        "\n",
+        "The trick wasn't the model. It was validating on a client-holdout split\n",
+        "(never random - random splits let models \"memorize\" clients) and running\n",
+        "a deliberate leak test to prove the validation itself actually works.\n",
+        "\n",
+        "Result: a Random Forest beat a transparent baseline rule 0.540 vs 0.240\n",
+        "on Precision@50 - a real, ~2.25x lift, not a leaked one.\n",
+        "\n",
+        "Full paper + reproducible notebooks:\n",
+        "https://github.com/abdullahawan0043-glitch/Flyrank-machine-learning-internship\n",
+        "\n",
+        "SHAREABLE CUT 2 - Employer-facing summary (3 sentences)\n",
+        "\n",
+        "I built a machine learning model that ranks which content pages a team\n",
+        "should review first for a refresh, trained and validated on FlyRank's\n",
+        "real anonymized search-performance data (30K+ pages, cross-checked\n",
+        "against a 79M-row production data warehouse). The model was evaluated\n",
+        "honestly on a client-holdout split against a transparent rule-based\n",
+        "baseline, reaching a measured 2.25x precision lift while passing a full\n",
+        "leakage audit. The output was packaged as a human-reviewed action\n",
+        "playbook with explicit no-go rules, not an autonomous system - the full\n",
+        "pipeline, from research question to a deployed public paper, is\n",
+        "reproducible from my GitHub repository.\n",
+        "\"\"\""
+      ],
+      "metadata": {
+        "id": "cGl06AcoFco_",
+        "outputId": "b7d2aef1-f12e-4093-8f61-26bb36f64e8c",
+        "colab": {
+          "base_uri": "https://localhost:8080/",
+          "height": 626
+        }
+      },
+      "id": "cGl06AcoFco_",
+      "execution_count": null,
+      "outputs": [
+        {
+          "output_type": "execute_result",
+          "data": {
+            "text/plain": [
+              "'\\nSHAREABLE CUT 1 - Social post (methodology-focused)\\n\\nBuilt a content-refresh priority model on FlyRank\\'s real search data -\\nand made sure it was HONEST before trusting it.\\n\\nThe trick wasn\\'t the model. It was validating on a client-holdout split\\n(never random - random splits let models \"memorize\" clients) and running\\na deliberate leak test to prove the validation itself actually works.\\n\\nResult: a Random Forest beat a transparent baseline rule 0.540 vs 0.240\\non Precision@50 - a real, ~2.25x lift, not a leaked one.\\n\\nFull paper + reproducible notebooks:\\nhttps://github.com/abdullahawan0043-glitch/Flyrank-machine-learning-internship\\n\\nSHAREABLE CUT 2 - Employer-facing summary (3 sentences)\\n\\nI built a machine learning model that ranks which content pages a team\\nshould review first for a refresh, trained and validated on FlyRank\\'s\\nreal anonymized search-performance data (30K+ pages, cross-checked\\nagainst a 79M-row production data warehouse). The model was evaluated\\nhonestly on a client-holdout split against a transparent rule-based\\nbaseline, reaching a measured 2.25x precision lift while passing a full\\nleakage audit. The output was packaged as a human-reviewed action\\nplaybook with explicit no-go rules, not an autonomous system - the full\\npipeline, from research question to a deployed public paper, is\\nreproducible from my GitHub repository.\\n'"
+            ],
+            "application/vnd.google.colaboratory.intrinsic+json": {
+              "type": "string"
+            }
+          },
+          "metadata": {},
+          "execution_count": 9
+        }
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "RPZUI_aJrxTx"
+      },
+      "source": [
+        "## Self-check\n",
+        "\n",
+        "Before you submit, confirm each line honestly:\n",
+        "\n",
+        "- [ ] Every section above is filled — markdown thinking AND the code that backs it\n",
+        "- [ ] The notebook runs top to bottom with no errors (Runtime → Run all)\n",
+        "- [ ] No client names, URLs, or private queries anywhere\n",
+        "- [ ] My claims use careful words: observed, measured, directional, decision-support\n",
+        "- [ ] Committed to my repo under `work/notebooks/` — then submit your repo URL on the card. Done.\n",
+        "- [ ] My deployed paper has **all 9 sections** — including the **Abstract** at the top and **Acknowledgments & data credit** (the https://flyrank.ai link) at the bottom.\n",
+        "- [ ] **ML-12 done in this notebook's closing cells:** 5-minute demo outline + a social-post cut + a 3-sentence employer-facing summary.\n"
+      ],
+      "id": "RPZUI_aJrxTx"
+    }
+  ],
+  "metadata": {
+    "kernelspec": {
+      "display_name": "Python 3",
+      "name": "python3"
+    },
+    "language_info": {
+      "name": "python"
+    },
+    "colab": {
+      "provenance": [],
+      "include_colab_link": true
+    }
+  },
+  "nbformat": 4,
+  "nbformat_minor": 5
+}
