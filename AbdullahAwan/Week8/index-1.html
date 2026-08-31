@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Which Pages Should You Refresh First? — A Ranking Model for Content Opportunity Scoring</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#F7F8FA;
+    --paper-raised:#FFFFFF;
+    --ink:#13233F;
+    --ink-soft:#3D4B63;
+    --slate:#5B6472;
+    --rule:#D8DCE2;
+    --accent:#2E74B5;
+    --accent-deep:#1F3864;
+    --gold:#B08D57;
+    --good:#2F8F5B;
+    --warn:#B5533D;
+  }
+  *{box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  body{
+    margin:0;
+    background:var(--paper);
+    color:var(--ink-soft);
+    font-family:'IBM Plex Sans', system-ui, sans-serif;
+    line-height:1.65;
+    font-size:16.5px;
+  }
+  h1,h2,h3{
+    font-family:'Source Serif 4', Georgia, serif;
+    color:var(--ink);
+    margin:0 0 0.5em 0;
+  }
+  a{color:var(--accent-deep);}
+  .wrap{max-width:760px; margin:0 auto; padding:0 24px;}
+  .wrap-wide{max-width:920px; margin:0 auto; padding:0 24px;}
+
+  /* Header */
+  header.hero{
+    background:linear-gradient(180deg,#0F1D33 0%, #16294A 100%);
+    color:#EAF0F8;
+    padding:64px 0 56px 0;
+    border-bottom:5px solid var(--gold);
+  }
+  header.hero .eyebrow{
+    font-family:'IBM Plex Mono', monospace;
+    letter-spacing:0.14em;
+    text-transform:uppercase;
+    font-size:12.5px;
+    color:#9FC1E6;
+    margin-bottom:18px;
+  }
+  header.hero h1{
+    color:#FFFFFF;
+    font-size:2.35rem;
+    line-height:1.18;
+    max-width:16ch;
+    font-weight:600;
+  }
+  header.hero .subtitle{
+    color:#C4D3E6;
+    font-size:1.08rem;
+    max-width:56ch;
+    margin-top:14px;
+  }
+  header.hero .byline{
+    margin-top:32px;
+    font-size:14px;
+    color:#8FA6C4;
+    display:flex;
+    gap:28px;
+    flex-wrap:wrap;
+  }
+  header.hero .byline b{color:#DCE7F5;}
+
+  /* Abstract card */
+  .abstract{
+    background:var(--paper-raised);
+    border:1px solid var(--rule);
+    border-left:4px solid var(--accent);
+    border-radius:4px;
+    padding:28px 30px;
+    margin:-34px auto 0 auto;
+    max-width:760px;
+    box-shadow:0 12px 30px -18px rgba(19,35,63,0.35);
+    position:relative;
+  }
+  .abstract .label{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11.5px;
+    letter-spacing:0.12em;
+    text-transform:uppercase;
+    color:var(--accent-deep);
+    margin-bottom:10px;
+  }
+  .abstract p{margin:0; color:var(--ink-soft); font-size:15.8px;}
+
+  /* Nav */
+  nav.toc{
+    max-width:760px;
+    margin:40px auto 0 auto;
+    padding:0 24px;
+    display:flex;
+    flex-wrap:wrap;
+    gap:6px 18px;
+    font-size:13.5px;
+    font-family:'IBM Plex Mono', monospace;
+  }
+  nav.toc a{
+    color:var(--slate);
+    text-decoration:none;
+    border-bottom:1px solid transparent;
+    padding-bottom:2px;
+  }
+  nav.toc a:hover{ border-bottom:1px solid var(--accent); color:var(--accent-deep);}
+
+  main{padding:36px 0 20px 0;}
+  section{margin:52px 0;}
+  section h2{
+    font-size:1.5rem;
+    display:flex;
+    align-items:baseline;
+    gap:12px;
+  }
+  section h2 .num{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:0.95rem;
+    color:var(--gold);
+    font-weight:500;
+  }
+  section h3{font-size:1.12rem; margin-top:1.6em;}
+  hr.rule{border:none; border-top:1px solid var(--rule); margin:52px 0;}
+
+  p{margin:0 0 1em 0;}
+  .lede{font-size:1.12rem; color:var(--ink-soft);}
+
+  ul, ol{padding-left:1.3em;}
+  li{margin-bottom:0.5em;}
+
+  /* Tables */
+  table{
+    width:100%;
+    border-collapse:collapse;
+    margin:20px 0;
+    font-size:15px;
+    background:var(--paper-raised);
+  }
+  th, td{
+    border:1px solid var(--rule);
+    padding:10px 14px;
+    text-align:left;
+  }
+  th{
+    background:#EEF2F7;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:12.5px;
+    letter-spacing:0.03em;
+    text-transform:uppercase;
+    color:var(--ink-soft);
+  }
+  td.num{font-family:'IBM Plex Mono', monospace;}
+  tr.highlight td{background:#EAF3FC; font-weight:600; color:var(--accent-deep);}
+
+  /* Figures */
+  figure{margin:28px 0; background:var(--paper-raised); border:1px solid var(--rule); border-radius:4px; padding:18px 18px 14px 18px;}
+  figure img{width:100%; height:auto; display:block; border-radius:2px;}
+  figcaption{
+    font-size:13.5px;
+    color:var(--slate);
+    margin-top:10px;
+    padding-top:10px;
+    border-top:1px dashed var(--rule);
+  }
+  figcaption b{color:var(--ink-soft);}
+
+  /* Callouts */
+  .callout{
+    border-left:4px solid var(--gold);
+    background:#FBF7EF;
+    padding:16px 20px;
+    border-radius:2px;
+    font-size:15px;
+    margin:20px 0;
+  }
+  .callout.warn{border-left-color:var(--warn); background:#FBEFEC;}
+  .callout .tag{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11px;
+    text-transform:uppercase;
+    letter-spacing:0.08em;
+    color:var(--warn);
+    display:block;
+    margin-bottom:6px;
+  }
+  .callout.warn .tag{color:var(--warn);}
+
+  /* Recommendation cards */
+  .rec-list{list-style:none; padding:0; margin:24px 0; counter-reset:rec;}
+  .rec-list li{
+    counter-increment:rec;
+    background:var(--paper-raised);
+    border:1px solid var(--rule);
+    border-radius:4px;
+    padding:16px 18px 16px 54px;
+    margin-bottom:12px;
+    position:relative;
+  }
+  .rec-list li::before{
+    content:counter(rec);
+    position:absolute;
+    left:16px; top:16px;
+    font-family:'IBM Plex Mono', monospace;
+    font-weight:600;
+    color:var(--accent);
+    font-size:15px;
+    background:#EAF3FC;
+    width:26px; height:26px;
+    border-radius:50%;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .rec-list b{color:var(--ink);}
+  .rec-list .why{color:var(--slate); font-size:14px; display:block; margin-top:4px;}
+
+  code, .mono{font-family:'IBM Plex Mono', monospace; font-size:0.92em; background:#EEF2F7; padding:1px 5px; border-radius:3px;}
+
+  footer{
+    background:var(--accent-deep);
+    color:#CFE0F2;
+    margin-top:60px;
+    padding:40px 0 50px 0;
+  }
+  footer h3{color:#fff; font-size:1.15rem;}
+  footer a{color:#BFDBFA;}
+  footer .credit-box{
+    background:rgba(255,255,255,0.06);
+    border:1px solid rgba(255,255,255,0.15);
+    border-radius:4px;
+    padding:18px 20px;
+    margin-top:16px;
+    font-size:14.5px;
+  }
+  footer .meta{font-size:13px; color:#8FA6C4; margin-top:28px;}
+
+  @media (max-width:600px){
+    header.hero{padding:44px 0 48px 0;}
+    header.hero h1{font-size:1.7rem;}
+    .abstract{margin:-26px 16px 0 16px; padding:20px 20px;}
+    section{margin:40px 0;}
+  }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="eyebrow">Applied Search Intelligence · FlyRank ML Internship Capstone</div>
+    <h1>Which Pages Should You Refresh First?</h1>
+    <div class="subtitle">A ranked, human-reviewed scoring model for content-refresh prioritization — validated with an honest client-holdout split and audited for leakage against a transparent rule-based baseline.</div>
+    <div class="byline">
+      <div><b>Muhammad Abdullah Awan</b><br>BS Artificial Intelligence, University of Haripur</div>
+      <div><b>Track</b><br>Machine Learning Engineering</div>
+      <div><b>Lane</b><br>Refresh / Content Opportunity Scoring</div>
+    </div>
+  </div>
+</header>
+
+<div class="abstract">
+  <div class="label">Abstract</div>
+  <p>
+    Which content pages should an editor review for a refresh first, given limited time?
+    Using FlyRank's anonymized content-performance data and a production-scale search
+    data warehouse (~79M rows, queried directly with DuckDB), I built a Random Forest
+    ranking model and compared it against a transparent, hand-written baseline rule on
+    an identical client-holdout test split. The learned model reached a measured
+    Precision@50 of <b>0.540</b>, versus <b>0.240</b> for the baseline rule, on the same
+    split and metric. A full leakage audit — including a deliberate leak test — confirmed
+    the result reflects real signal rather than memorized client patterns. The output is
+    packaged as a ranked, reason-coded action playbook intended strictly as decision
+    support for a human editor, not as an autonomous publishing system.
+  </p>
+</div>
+
+<nav class="toc">
+  <a href="#intro">Introduction</a>
+  <a href="#data">Data</a>
+  <a href="#methodology">Methodology</a>
+  <a href="#results">Results</a>
+  <a href="#limitations">Limitations</a>
+  <a href="#recommendations">Recommendations</a>
+  <a href="#reproducibility">Reproducibility</a>
+  <a href="#credits">Credits</a>
+</nav>
+
+<main class="wrap">
+
+  <section id="intro">
+    <h2><span class="num">01</span> Introduction</h2>
+    <p class="lede">
+      An editorial team with a large content library rarely has time to review every page.
+      The real decision is narrower and more urgent: <em>which handful of pages should get
+      attention this week?</em>
+    </p>
+    <p>
+      Reviewing the wrong pages wastes scarce editor time. Missing the right ones lets a real
+      decline compound quietly until it is expensive to reverse. A simple hand-written rule —
+      "flag anything stale and still visible" — is transparent and easy to trust, but it is
+      also blunt: it cannot weigh multiple weak signals together the way a learned model can.
+    </p>
+    <p>
+      This paper builds that learned model, but treats the hand-written rule as the number
+      to beat rather than a strawman — every claim below is checked against it on the exact
+      same data and metric.
+    </p>
+  </section>
+
+  <hr class="rule">
+
+  <section id="data">
+    <h2><span class="num">02</span> Data</h2>
+    <p>
+      Two data sources were used, at two different stages of the project:
+    </p>
+    <ul>
+      <li><b>Starter sample</b> — 30,000 anonymized content pages across 32 clients, trailing
+        90-day search and engagement metrics, used for iteration and the results reported below.</li>
+      <li><b>Production warehouse</b> — FlyRank's Hugging Face–hosted data warehouse
+        (<code>fact_content_daily_performance</code>, ~79M rows). A mid-panel month
+        (<code>month=2026-03</code>) was queried directly with DuckDB for the data-contract
+        stage: 9.84M rows across 55 clients and 331,437 content items.</li>
+    </ul>
+    <table>
+      <tr><th>Field</th><th>Value</th></tr>
+      <tr><td>Unit of analysis</td><td>One content page, one client, one trailing-90-day window</td></tr>
+      <tr><td>Time window</td><td>Trailing 90 days (starter sample); month=2026-03 (warehouse contract)</td></tr>
+      <tr><td>Label</td><td><code>is_declining_label</code> = trend_direction == "down" (current-window proxy)</td></tr>
+      <tr><td>Excluded</td><td>Raw URLs, queries, client names; FlyRank product-decision fields (health_score, priority_score); the sealed final month (2026-06)</td></tr>
+    </table>
+    <div class="callout">
+      <span class="tag">Public-safe by design</span>
+      Every field used here is either a scrambled identifier (used only for grouping) or an
+      observed search/engagement metric. No raw URLs, search queries, or client names appear
+      anywhere in this analysis or its outputs.
+    </div>
+  </section>
+
+  <hr class="rule">
+
+  <section id="methodology">
+    <h2><span class="num">03</span> Methodology</h2>
+
+    <h3>Baseline: a rule a human can read</h3>
+    <p>
+      A page is flagged if it has gone <b>180+ days</b> without an update <em>and</em> still
+      receives <b>500+ impressions</b> in the trailing 90 days — stale, but still visible enough
+      to matter. Each flagged page is scored by its impression volume and carries the reason code
+      <code>stale_but_visible</code>.
+    </p>
+
+    <h3>Model: Random Forest, chosen to fit the question</h3>
+    <p>
+      Because the real question is "which pages first" — a ranking problem, not a plain yes/no
+      classification — every model's output is used as a ranking score and evaluated with
+      Precision@K rather than accuracy. Random Forest was chosen over a single rule or a linear
+      model because it captures interacting, non-linear signals (visibility × freshness × position
+      × engagement) that a hand-written rule cannot combine.
+    </p>
+
+    <h3>Validation: client-holdout, not random</h3>
+    <p>
+      Multiple pages belong to the same client. A random row split would let the model see
+      other pages from a client during training and get tested on that same client's remaining
+      pages — memorizing client-specific quirks rather than learning transferable signal. Every
+      result below uses a <b>grouped split by client_id</b> (30% of clients held out entirely),
+      so the model is genuinely tested on clients it has never seen.
+    </p>
+
+    <h3>Leakage checks</h3>
+    <p>
+      <code>trend_direction</code> and <code>trend_pct</code> — the columns the label is derived
+      from — were excluded from every feature set. As a deliberate test of the validation harness
+      itself, one label-derived column was intentionally added back in: the score jumped to a
+      near-perfect <b>1.000</b>, confirming the harness correctly detects leakage when it is
+      present. That column was then removed and only the honest number was kept.
+    </p>
+  </section>
+
+  <hr class="rule">
+
+  <section id="results">
+    <h2><span class="num">04</span> Results</h2>
+    <p>
+      The table below reports every method on the identical client-holdout test split, with the
+      base rate shown for context — a score means little until you know what random guessing
+      would give you.
+    </p>
+    <table>
+      <tr><th>Method</th><th>Precision@50</th><th>ROC-AUC</th></tr>
+      <tr><td>Base rate (random ranking)</td><td class="num">≈0.240</td><td class="num">—</td></tr>
+      <tr><td>Baseline rule (stale + visible)</td><td class="num">0.240</td><td class="num">—</td></tr>
+      <tr class="highlight"><td>Random Forest (honest split)</td><td class="num">0.540</td><td class="num">0.603</td></tr>
+    </table>
+
+    <figure>
+      <img src="img/model_vs_baseline.png" alt="Bar chart comparing Precision at 50 for base rate, baseline rule, and Random Forest">
+      <figcaption><b>Figure 1.</b> The Random Forest model ranks roughly 2.25× more true decliners into its top 50 than the hand-written baseline, measured on an identical, client-holdout test split.</figcaption>
+    </figure>
+
+    <h3>Reading the errors, not just the score</h3>
+    <p>
+      The model's top three features by importance are <b>days since last update</b>,
+      <b>impressions (90d)</b>, and <b>average position</b> — the same signals already verified
+      as linked to decline risk during the Week 4 signal audit, not a suspicious, unexplained
+      top feature. Manual review of the top 50 ranked pages found the model's most common error:
+      pages with high impressions and long time-since-update that were ranked highly, but had
+      actually plateaued rather than declined — a distinction the current features cannot fully
+      capture.
+    </p>
+  </section>
+
+  <hr class="rule">
+
+  <section id="limitations">
+    <h2><span class="num">05</span> Limitations &amp; Honest Framing</h2>
+    <div class="callout warn">
+      <span class="tag">What this work cannot claim</span>
+      This is observational, cross-sectional data — no experiment was run, so nothing here shows
+      that refreshing a page <em>causes</em> recovery. Every ranking is decision-support: "this
+      page looks worth reviewing first, because…" — never a guarantee.
+    </div>
+    <ul>
+      <li><b>Proxy label:</b> <code>is_declining_label</code> reflects the current window, not a
+        validated future outcome. A stronger future version would predict a decline measured in a
+        window strictly after the feature window.</li>
+      <li><b>Survivor filter:</b> the sample only includes active pages (impressions_90d &gt; 0,
+        age ≥ 90 days) — very new or fully invisible pages are not represented at all.</li>
+      <li><b>Sample scope:</b> results reflect one 30,000-row anonymized slice, not FlyRank's
+        full client base; the production-scale warehouse was used only for the data-contract
+        verification stage, not for the model reported here.</li>
+      <li><b>Consolidation and seasonality:</b> a "decline" flag can still be a sibling page
+        absorbing traffic, or ordinary seasonal demand — neither is ruled out by this model alone.</li>
+    </ul>
+  </section>
+
+  <hr class="rule">
+
+  <section id="recommendations">
+    <h2><span class="num">06</span> Ranked Recommendations</h2>
+    <p>The model's output is packaged as a reviewable action queue, not an automated pipeline:</p>
+    <ol class="rec-list">
+      <li><b>Refresh priority</b> — stale (180+ days) and still visible (500+ impressions) pages.
+        <span class="why">Why: matches the paper's own verified staleness-visibility signal; largest expected recovery per review.</span></li>
+      <li><b>Review snippet / title</b> — page-1 pages with weak click-through for their position.
+        <span class="why">Why: page-one refinement converts to clicks faster than rebuilding low-visibility pages.</span></li>
+      <li><b>Review for refresh</b> — pages the model scores ≥0.65 for decline risk.
+        <span class="why">Why: highest model-estimated risk not already covered by the rule above.</span></li>
+      <li><b>Monitor only</b> — low-visibility pages with no current flag.
+        <span class="why">Why: too little signal yet to justify editor time; re-check next cycle.</span></li>
+    </ol>
+
+    <figure>
+      <img src="img/action_distribution.png" alt="Bar chart showing the count of pages assigned to each recommended action">
+      <figcaption><b>Figure 2.</b> Distribution of the ranked action queue across the test split — most pages fall into review categories rather than "no action," reflecting the active-content sampling filter.</figcaption>
+    </figure>
+
+    <div class="callout warn">
+      <span class="tag">What should not be automated</span>
+      No action here should trigger an automatic edit, publish, or removal. Every flagged page
+      requires human sign-off; reviewers should rule out seasonality and consolidation before
+      treating a "decline" flag as real, and scores should never be compared directly across
+      different clients or presented without their Precision@50 / base-rate context.
+    </div>
+  </section>
+
+  <hr class="rule">
+
+  <section id="reproducibility">
+    <h2><span class="num">07</span> Reproducibility</h2>
+    <p>Every step above is executable and versioned. Random seed <code>42</code> is fixed throughout.</p>
+    <ul>
+      <li>Full repository: <a href="https://github.com/abdullahawan0043-glitch/Flyrank-machine-learning-internship" target="_blank">github.com/abdullahawan0043-glitch/Flyrank-machine-learning-internship</a></li>
+      <li>Capstone notebook: <code>work/notebooks/capstone.ipynb</code></li>
+      <li>Baseline (Week 4): <code>work/notebooks/w04_baseline_score.ipynb</code></li>
+      <li>Model (Week 5): <code>work/notebooks/w05_model.ipynb</code></li>
+      <li>Validation audit (Week 6): <code>work/notebooks/w06_validation_audit.ipynb</code></li>
+      <li>Action playbook (Week 7): <code>work/notebooks/w07_action_playbook.ipynb</code></li>
+    </ul>
+  </section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <h3>Acknowledgments &amp; Data Credit</h3>
+    <p>This work would not exist without the internship program and dataset that made it possible.</p>
+    <div class="credit-box">
+      Built on the <b>FlyRank ML Internship dataset</b>, provided by
+      <a href="https://flyrank.ai" target="_blank">FlyRank</a> — an AI-powered organic growth
+      platform. All client identifiers were pseudonymized prior to release; no private client
+      data appears in this paper or its underlying repository.
+    </div>
+    <div class="meta">Muhammad Abdullah Awan · BS Artificial Intelligence · University of Haripur · FlyRank AI Machine Learning Engineering Internship</div>
+  </div>
+</footer>
+
+</body>
+</html>
