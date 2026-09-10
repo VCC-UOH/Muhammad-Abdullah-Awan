@@ -1,0 +1,68 @@
+# FlyRank AI Internship — Final Capstone Project
+
+## Project Title
+"Which Pages Should You Refresh First?" — A Ranking Model for Content 
+Opportunity Scoring
+
+## Overview
+This is the final, mandatory capstone deliverable of my FlyRank AI Machine 
+Learning Engineering internship (ML-CAP-01). It consolidates all 8 weeks of 
+assignment work into one complete, deployed research paper, built on real 
+FlyRank search data.
+
+## What This Project Does
+Content editorial teams cannot manually review every page in a large content 
+library. This project builds a ranking model that answers a concrete 
+decision: which content pages should an editor review first for a refresh, 
+given limited time?
+
+## Lane Chosen
+Refresh / Content Opportunity Scoring — one of four predefined Search 
+Intelligence lanes offered in the program.
+
+## What I Built
+1. **Data contract** — verified against FlyRank's real production data 
+   warehouse (~79 million rows, queried directly via DuckDB).
+2. **Transparent baseline rule** — a simple, human-readable rule (stale + 
+   still-visible pages), scoring Precision@50 = 0.240.
+3. **Machine learning model** — a Random Forest ranking model, honestly 
+   validated on a client-holdout split (never a random split, to avoid the 
+   model memorizing client-specific patterns), reaching Precision@50 = 0.540 
+   — a measured ~2.25x improvement over the baseline.
+4. **Full leakage audit** — including a deliberate leak test that confirmed 
+   the validation process correctly detects leakage when present.
+5. **Ranked action playbook** — the model's output packaged into a 
+   human-reviewed queue with reason codes, explicit human sign-off rules, 
+   and a "do-not-automate" list.
+6. **Deployed research paper** — a complete public research paper covering 
+   Abstract, Introduction, Data, Methodology, Results (with charts), 
+   Limitations, Ranked Recommendations, Reproducibility, and Acknowledgments 
+   & data credit (linked to flyrank.ai).
+
+## What I Learned
+- How to take a real business question and correctly frame it as a specific 
+  ML task (ranking/scoring), rather than jumping straight to modeling.
+- Why validation design (grouped/client-holdout splits) matters more than 
+  the model itself — an honest, slightly lower score is worth more than an 
+  inflated, leaked one.
+- How to turn a technical result into a publicly shareable, honestly-worded 
+  research artifact that a stranger can trust in minutes.
+
+## Challenges Faced
+- Working entirely from a mobile device for an 8-week technical internship, 
+  including Colab notebooks, GitHub commits, and deploying a live webpage.
+- Debugging data warehouse queries against real column names and correctly 
+  configuring authentication for a gated, production-scale dataset.
+- Condensing eight weeks of technical work into a concise, honest, 
+  non-overclaiming research paper.
+
+## Result
+Capstone approved by FlyRank AI. Certificate of Completion and Letter of 
+Recommendation pending, expected early September 2026.
+
+## Where to Verify This Work
+Live deployed research paper:
+https://abdullahawan0043-glitch.github.io/Flyrank-machine-learning-internship/
+
+Full GitHub repository (all notebooks, code, and outputs):
+https://github.com/abdullahawan0043-glitch/Flyrank-machine-learning-internship
